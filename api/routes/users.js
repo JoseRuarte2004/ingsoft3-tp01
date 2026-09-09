@@ -39,24 +39,23 @@ passport.use(new LocalStrategy(
 ));
 
 
-router.post("/register", function (request, response) {
-	db.user.findOne({
-		where:
-			db.sequelize.or(
-				{username: request.body.username},
-				{email: request.body.email}
-			)
-	}).then(function(user){
+router.post("/register", async function (request, response) {
+	try {
+		const user = await db.user.findOne({
+			where:
+				db.sequelize.or(
+					{username: request.body.username},
+					{email: request.body.email}
+				)
+		});
 		if(!user) {
-			bcrypt.hash(request.body.password, saltRounds, function (error, hash) {
-				db.user.create({
-					username: request.body.username,
-					email: request.body.email,
-					password: hash,
-					uuid: uuidv4()
-				});
+			const hash = await bcrypt.hash(request.body.password, saltRounds);
+			await db.user.create({
+				username: request.body.username,
+				email: request.body.email,
+				password: hash,
+				uuid: uuidv4()
 			});
-
 			response.send("User creation successful.");
 		} else {
 			if(user["username"] === request.body.username){
@@ -66,10 +65,10 @@ router.post("/register", function (request, response) {
 				response.send("An account with that email already exists.");
 			}
 		}
-	})
-		.catch(function(error){
-			console.log(error);
-		});
+	} catch (error) {
+		console.log(error);
+		response.status(500).send("Error creating user.");
+	}
 });
 
 router.post("/login", function(request, response, next){

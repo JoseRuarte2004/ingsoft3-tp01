@@ -1,4 +1,7 @@
 const db = require("./database");
+
+let productId;
+
 beforeAll(async () => {
 	await db.sequelize.sync();
 });
@@ -6,19 +9,19 @@ beforeAll(async () => {
 test("create product", async () => {
 	expect.assertions(1);
 	const product = await db.product.create({
-		id: 1,
 		name:"milk",
 		quantity:1,
 		expiryDate:"2020-10-28",
 		storageLocation:"fridge",
 		freezable:false
 	});
-	expect(product.id).toEqual(1);
+	productId = product.id;
+	expect(product.name).toEqual("milk");
 });
 
 test("get product", async () => {
 	expect.assertions(5);
-	const product = await db.product.findByPk(1);
+	const product = await db.product.findByPk(productId);
 	expect(product.name).toEqual("milk");
 	expect(product.quantity).toEqual(1);
 	expect(product.expiryDate).toEqual("2020-10-28");
@@ -30,10 +33,10 @@ test("delete product", async () => {
 	expect.assertions(1);
 	await db.product.destroy({
 		where: {
-			id: 1
+			id: productId
 		}
 	});
-	const product = await db.product.findByPk(1);
+	const product = await db.product.findByPk(productId);
 	expect(product).toBeNull();
 });
 
