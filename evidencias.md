@@ -13,5 +13,5 @@ Al intentar mergear el PR de la rama B después de haber mergeado la rama A, Git
 El editor de conflictos de GitHub muestra los marcadores `<<<<<<<`, `=======` y `>>>>>>>` delimitando el cambio de la rama actual (B) contra el de `main` (A).
 
 ## 4. Release v1.0.0 publicada
-![release publicada](img/release-publicada.png)
+![release publicada](img/release-publicado.png)
 La release `v1.0.0`, generada a partir del tag del mismo nombre, publicada con las notas de qué incluye esta versión.
