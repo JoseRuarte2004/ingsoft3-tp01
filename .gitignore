@@ -1,6 +1,6 @@
 # dependencias y artefactos de build
 node_modules/
-bin/
+/bin/
 obj/
 dist/
 build/

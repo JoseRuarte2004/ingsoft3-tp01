@@ -1,0 +1,68 @@
+{
+	"name": "express-api",
+	"version": "0.0.0",
+	"scripts": {
+		"server": "pm2 start processes.json --no-daemon --watch --silent",
+		"start": "nodemon ./bin/www",
+		"test": "jest",
+		"migrate": "node ./bin/migrate.js"
+	},
+	"eslintConfig": {
+		"extends": [
+			"react-app",
+			"react-app/jest"
+		]
+	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/ElliotRedhead/LearningNode.git"
+	},
+	"author": "",
+	"license": "ISC",
+	"bugs": {
+		"url": "https://github.com/ElliotRedhead/LearningNode/issues"
+	},
+	"homepage": "https://github.com/ElliotRedhead/LearningNode",
+	"browserslist": {
+		"production": [
+			">0.2%",
+			"not dead",
+			"not op_mini all"
+		],
+		"development": [
+			"last 1 chrome version",
+			"last 1 firefox version",
+			"last 1 safari version"
+		]
+	},
+	"dependencies": {
+		"@testing-library/jest-dom": "^5.11.4",
+		"@testing-library/react": "^11.1.0",
+		"@testing-library/user-event": "^12.1.10",
+		"bcrypt": "^5.0.0",
+		"cookie-parser": "~1.4.4",
+		"cookie-session": "^1.4.0",
+		"cors": "^2.8.5",
+		"csurf": "^1.11.0",
+		"debug": "~2.6.9",
+		"dotenv": "^8.2.0",
+		"express": "^4.17.1",
+		"express-rate-limit": "^5.2.3",
+		"helmet": "^4.2.0",
+		"hpp": "^0.2.3",
+		"jsonwebtoken": "^8.5.1",
+		"morgan": "~1.9.1",
+		"nodemon": "^2.0.6",
+		"passport": "^0.4.1",
+		"passport-local": "^1.0.0",
+		"pg": "^8.4.1",
+		"pg-hstore": "^2.3.3",
+		"pm2": "^4.5.0",
+		"sequelize": "^6.3.5",
+		"uuid": "^8.3.2"
+	},
+	"devDependencies": {
+		"eslint": "^7.11.0",
+		"eslint-plugin-jsdoc": "^30.7.9"
+	}
+}
