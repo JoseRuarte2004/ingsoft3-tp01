@@ -21,7 +21,10 @@ const app = express();
 
 app.use(helmet());
 app.use(hpp());
-app.use(limiter());
+app.use(limiter({
+	windowMs: 15 * 60 * 1000,
+	max: 300
+}));
 app.use(cors({ credentials: true }));
 app.use(logger("dev"));
 app.use(express.json());

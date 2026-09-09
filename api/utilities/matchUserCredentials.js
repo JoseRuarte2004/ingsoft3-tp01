@@ -9,14 +9,13 @@ var db = require("../database");
  * @returns {boolean} True if both ID and UUID match a user entry, false otherwise.
  */
 async function matchUserCredentials(userId, userUuid){
-	await db.user.findOne({
+	const user = await db.user.findOne({
 		where: {
 			"id": userId,
 			"uuid": userUuid
 		}
-	}).then(function(user){
-		return user ? true : false;
 	});
+	return user ? true : false;
 }
 
 module.exports = matchUserCredentials;

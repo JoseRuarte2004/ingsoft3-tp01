@@ -5,10 +5,7 @@ const router = express.Router();
 const csrfProtection = csrf({ cookie: true });
 
 router.get("/", csrfProtection, function (request, response) {
-	if (!request.cookies["csrfToken"]){
-		response.send({csrfToken: request.csrfToken() });
-	}
-	response.send("csrfToken already exists.");
+	response.send({csrfToken: request.csrfToken() });
 });
 
 module.exports = router;

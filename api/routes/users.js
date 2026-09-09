@@ -89,6 +89,11 @@ router.post("/login", function(request, response, next){
 	}) (request,response,next);
 });
 
+router.post("/logout", function(request, response) {
+	request.logout();
+	response.status(200).send("Logged out.");
+});
+
 router.get("/", cors(), function(request, response) {
 	if (request.isAuthenticated()){
 		db.user.findAll()

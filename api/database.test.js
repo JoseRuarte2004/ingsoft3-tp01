@@ -5,7 +5,7 @@ beforeAll(async () => {
 
 test("create product", async () => {
 	expect.assertions(1);
-	const product = await db.Product.create({
+	const product = await db.product.create({
 		id: 1,
 		name:"milk",
 		quantity:1,
@@ -18,7 +18,7 @@ test("create product", async () => {
 
 test("get product", async () => {
 	expect.assertions(5);
-	const product = await db.Product.findByPk(1);
+	const product = await db.product.findByPk(1);
 	expect(product.name).toEqual("milk");
 	expect(product.quantity).toEqual(1);
 	expect(product.expiryDate).toEqual("2020-10-28");
@@ -28,12 +28,12 @@ test("get product", async () => {
 
 test("delete product", async () => {
 	expect.assertions(1);
-	await db.Product.destroy({
+	await db.product.destroy({
 		where: {
 			id: 1
 		}
 	});
-	const product = await db.Product.findByPk(1);
+	const product = await db.product.findByPk(1);
 	expect(product).toBeNull();
 });
 

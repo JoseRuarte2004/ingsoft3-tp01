@@ -6,11 +6,11 @@ var matchUserCredentials = require("../utilities/matchUserCredentials");
 /**
  * Get all products owned by the user.
  */
-router.get("/", function(request, response) {
-	if (request.isAuthenticated() && (async () => await matchUserCredentials(request.user.id, request.user.uuid))){
+router.get("/", async function(request, response) {
+	if (request.isAuthenticated() && await matchUserCredentials(request.user.id, request.user.uuid)){
 		db.product.findAll({
 			where: {
-				"user.id": request.user.id
+				userId: request.user.id
 			}
 		})
 			.then(products => {
@@ -25,12 +25,21 @@ router.get("/", function(request, response) {
 });
 
 /**
- * Get a product that has a specific id.
+ * Get a product that has a specific id, owned by the requesting user.
  */
-router.get("/:id", function(request, response) {
-	if (request.isAuthenticated()){
-		db.product.findByPk(request.params.id)
+router.get("/:id", async function(request, response) {
+	if (request.isAuthenticated() && await matchUserCredentials(request.user.id, request.user.uuid)){
+		db.product.findOne({
+			where: {
+				id: request.params.id,
+				userId: request.user.id
+			}
+		})
 			.then(product => {
+				if (!product) {
+					response.status(404).send("Product not found.");
+					return;
+				}
 				response.status(200).send(JSON.stringify(product));
 			})
 			.catch(error => {
@@ -42,7 +51,7 @@ router.get("/:id", function(request, response) {
 });
 
 /**
- * Create a product with the parameters passed.
+ * Create a product with the parameters passed, owned by the requesting user.
  */
 router.post("/", function(request, response) {
 	if (request.isAuthenticated()) {
@@ -52,7 +61,7 @@ router.post("/", function(request, response) {
 			expiryDate: request.body.expiryDate,
 			storageLocation: request.body.storageLocation,
 			freezable: request.body.freezable,
-			id: request.body.id
+			userId: request.user.id
 		})
 			.then(product => {
 				response.status(200).send(JSON.stringify(product));
@@ -66,13 +75,46 @@ router.post("/", function(request, response) {
 });
 
 /**
- * Delete a product, based on product ID.
+ * Update a product owned by the requesting user, based on product ID.
  */
-router.delete("/:id", function(request, response) {
-	if (request.isAuthenticated()){
+router.put("/:id", async function(request, response) {
+	if (request.isAuthenticated() && await matchUserCredentials(request.user.id, request.user.uuid)){
+		db.product.update({
+			name: request.body.name,
+			quantity: request.body.quantity,
+			expiryDate: request.body.expiryDate,
+			storageLocation: request.body.storageLocation,
+			freezable: request.body.freezable
+		}, {
+			where: {
+				id: request.params.id,
+				userId: request.user.id
+			}
+		})
+			.then(([updatedCount]) => {
+				if (!updatedCount) {
+					response.status(404).send("Product not found.");
+					return;
+				}
+				response.status(200).send();
+			})
+			.catch(error => {
+				response.status(500).send(JSON.stringify(error));
+			});
+	} else {
+		response.status(403).send("Not authenticated, access is blocked.");
+	}
+});
+
+/**
+ * Delete a product owned by the requesting user, based on product ID.
+ */
+router.delete("/:id", async function(request, response) {
+	if (request.isAuthenticated() && await matchUserCredentials(request.user.id, request.user.uuid)){
 		db.product.destroy({
 			where: {
-				id: request.params.id
+				id: request.params.id,
+				userId: request.user.id
 			}
 		})
 			.then(() => {
