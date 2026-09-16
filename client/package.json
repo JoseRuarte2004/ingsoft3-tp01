@@ -2,9 +2,9 @@
 	"name": "client",
 	"version": "0.1.0",
 	"private": true,
-	"proxy": "http://localhost:5050",
+	"proxy": "http://localhost:5001",
 	"dependencies": {
-		"@babel/core": "7.12.3",
+		"@babel/core": "^7.16.0",
 		"@pmmmwh/react-refresh-webpack-plugin": "0.4.2",
 		"@svgr/webpack": "5.4.0",
 		"@testing-library/jest-dom": "^5.11.4",
