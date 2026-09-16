@@ -10,46 +10,56 @@ Aplicación de gestión de inventario doméstico (qué tenés guardado, dónde y
 - **Frontend**: React + TypeScript (`client/`)
 - **Base de datos**: PostgreSQL (corre como contenedor, no hace falta instalarlo)
 
-### Instalación
+### Cómo correrla (Docker, un solo comando)
 
-```
+Requisito: Docker Desktop (o Docker Engine + Compose) corriendo.
+
+```bash
 git clone https://github.com/JoseRuarte2004/ingsoft3-tp01.git
+cd ingsoft3-tp01
+cp .env.example .env      # editá los valores si querés, los de ejemplo ya funcionan
+docker compose up -d --build
 ```
 
-### Cómo correrla localmente
+Eso levanta los 3 servicios (Postgres, backend, frontend con nginx) y crea las tablas solo. Cuando terminen de arrancar (`docker compose ps` muestra los tres `Up`, la BD como `healthy`):
 
-**1. Base de datos** (contenedor, desde la raíz del repo):
+- Frontend: http://localhost:3000
+- Backend (directo, por si querés pegarle con curl/Postman): http://localhost:5050
+- Postgres: `localhost:5432` (user/pass/db según tu `.env`)
 
-```
-docker compose up -d db
-```
+> **Nota macOS**: el backend publica el puerto **5050** en el host (no 5000) porque en macOS el puerto 5000 suele estar tomado por AirPlay Receiver. El puerto **interno** de la red de compose sigue siendo 5000 — así se comunican `frontend` y `backend` entre sí, eso no cambia.
 
-**2. Backend**:
+Para bajar todo conservando los datos: `docker compose down`. Para bajar todo **y borrar los datos** (empezar de cero): `docker compose down -v`.
 
-```
-cd api
+### Variante con imágenes publicadas (sin construir nada localmente)
+
+Las imágenes de back y front están publicadas, públicas, en GitHub Container Registry:
+
+- `ghcr.io/joseruarte2004/ingsoft3-tp01-backend:v0.1.0`
+- `ghcr.io/joseruarte2004/ingsoft3-tp01-frontend:v0.1.0`
+
+```bash
 cp .env.example .env
+docker compose -f docker-compose.registry.yml up -d
 ```
 
-Editá `api/.env` y poné `DB_HOST=localhost` (el valor `db` del `.env.example` es el hostname que usaría el propio backend si algún día corre *dentro* de docker-compose junto a la base; corriendo la API en tu máquina como en este TP, tiene que apuntar a `localhost`). `DB_PASSWORD` debe ser `changeme` para que coincida con `docker-compose.yml`.
+### Correr el backend o el frontend sueltos, sin Docker (para desarrollo)
 
-```
+**Backend**:
+```bash
+cd api
+cp .env.example .env   # y poné DB_HOST=localhost (si la BD corre en Docker vía `docker compose up -d db`)
 npm install
-npm run migrate   # crea las tablas
-npm start         # http://localhost:5000
+npm run migrate
+npm start               # http://localhost:5000
 ```
 
-**3. Frontend** (en otra terminal):
-
-```
+**Frontend** (en otra terminal):
+```bash
 cd client
 npm install
-npm start          # http://localhost:3000
+npm start               # http://localhost:3000, proxea a localhost:5001 (ver "proxy" en client/package.json)
 ```
-
-El cliente hace proxy de `/csrf`, `/users` y `/products` hacia `http://localhost:5000` (ver `"proxy"` en `client/package.json`), así que el backend tiene que estar corriendo en ese puerto.
-
-> Nota macOS: el puerto 5000 puede estar tomado por AirPlay Receiver. Si pasa, desactivalo en Configuración del Sistema → General → AirDrop y Handoff, o corré la API con `PORT=<otro puerto> npm start` y actualizá el proxy del cliente para que coincida.
 
 ### Tests
 
