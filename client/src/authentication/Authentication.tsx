@@ -83,7 +83,7 @@ const Authentication = () => {
 			<Button variant="primary" type="submit">
 				{authMode}
 			</Button>
-			<p onClick={invertAuthMode}>{(authMode === "Register") ? "Already registered? Login here." : "Need to sign up? Register here."}</p>
+			<p onClick={invertAuthMode}>{(authMode === "Register") ? "¿Ya tenés cuenta? Iniciá sesión acá." : "¿Necesitás una cuenta? Registrate acá."}</p>
 		</Form>
 	);
 };
