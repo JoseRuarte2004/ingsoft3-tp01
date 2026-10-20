@@ -217,7 +217,7 @@ ese test deja `crearProducto` al 100% de líneas ejecutadas (entra, valida, llam
 - Arreglo: agregué `estadoVencimiento.test.js` (un test por cada camino que el código nuevo declara: `sin-fecha`, `vencido`, `por-vencer`, `esta-semana`, `fresco`, y los 5 casos de `prioridadDeAlerta`).
 - Corrida verde: [run 39454006275](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39454006275), `mergeStateStatus: CLEAN`, mergeado.
 
-**PR que queda abierto y en rojo hasta la defensa** ([#17](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/17)): `api/utilities/normalizarStorageLocation.js`, sin tests. Se abrió originalmente contra el umbral viejo (25/40, rompía por ramas en 36.08%); después de la corrección de este mismo PR, actualicé su rama contra el nuevo `main` (umbral 85/80) y sigue en rojo. **A propósito no se toca más**: queda como la prueba de que el freno funciona sin depender de una captura de pantalla.
+**PR que queda abierto y en rojo hasta la defensa** ([#17](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/17)): `api/utilities/normalizarStorageLocation.js`, sin tests. Se abrió originalmente contra el umbral viejo (25/40, rompía por ramas en 36.08%); después de la corrección de este mismo PR, actualicé su rama contra el nuevo `main` (umbral 85/80) y sigue en rojo — ahora por las **dos** métricas a la vez: `Jest: Coverage for lines (82.53%) does not meet "global" threshold (85%)` y `Jest: Coverage for branches (68.42%) does not meet "global" threshold (80%)` ([run 39458815182](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39458815182), `mergeStateStatus: BLOCKED`). **A propósito no se toca más**: queda como la prueba de que el freno funciona sin depender de una captura de pantalla.
 
 ## Problemas encontrados y cómo los resolví
 
@@ -235,7 +235,7 @@ ese test deja `crearProducto` al 100% de líneas ejecutadas (entra, valida, llam
 - Demo del gate (mergeado): [PR #15](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/15) — rojo: [run 39453746457](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39453746457) · verde: [run 39454006275](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39454006275)
 - Primer ajuste del umbral (superado por la corrección de abajo): [PR #16](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/16)
 - **Corrección de la medición de cobertura** (rutas excluidas de verdad, `userService.js` extraído y testeado, frontend medido por carpeta): [PR #19](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/19)
-- Demo del gate (abierto, en rojo hasta la defensa, rebaseado contra la medición corregida): [PR #17](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/17) — [run PENDIENTE]
+- Demo del gate (abierto, en rojo hasta la defensa, rebaseado contra la medición corregida): [PR #17](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/17) — [run 39458815182](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39458815182)
 
 ## Declaración de uso de IA — TP5
 
