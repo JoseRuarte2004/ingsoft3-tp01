@@ -315,3 +315,17 @@ Job `deploy-qa` en `ci.yml` (PR [#27](https://github.com/JoseRuarte2004/ingsoft3
 El smoke test reintenta 30 veces cada 20s (el contrato del free tier: cold start de Render) y verifica tres cosas por separado: `/health` (proceso vivo), `/health/db` (la base responde — separar esto de `/health` fue a propósito: un `/health` que no toca la base puede dar verde con la connection string rota) y el front servido.
 
 **Limitación honesta**: el deploy hook responde al instante y Render buildea en segundo plano — mientras construye (o si ese build falla), el servicio sigue sirviendo la versión anterior. Como el smoke empieza a chequear apenas se dispara el hook, su primer intento puede encontrar la versión VIEJA todavía respondiendo y dar verde sin que el commit nuevo haya llegado a estar `live` — mi smoke no distingue esos dos casos. No implementé la variante que compara el commit corriendo contra `github.sha` (la guía la marca opcional acá y obligatoria recién en el TP7) — queda como limitación conocida, no escondida.
+
+## El gate humano hacia PROD
+
+Job `deploy-prod` (PR [#29](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/29)): `needs: deploy-qa` (no repite el `if` de rama — lo hereda de la cadena, así que en un PR ninguno de los dos jobs corre) y `environment: production`, con un **required reviewer** (yo mismo, `prevent_self_review: false` — es lo que permite aprobar los propios deploys, a diferencia de los PRs). `concurrency: { group: deploy-prod, cancel-in-progress: false }` para que dos deploys a PROD no se pisen entre sí.
+
+**Qué miro antes de aprobar** (los criterios del gate, no solo el trámite): que el job `deploy-qa` de esa misma corrida haya terminado en verde (si no, ni siquiera llega a pedir aprobación), que el smoke de QA realmente haya tocado la base (no solo `/health`), y qué cambia ese commit puntual — si toca algo sensible (auth, conexión a la base, cobertura/umbral), lo miro con más cuidado que un cambio de texto.
+
+### Evidencia del flujo completo
+
+1. **Rechazo** ([run 39492950044](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39492950044)): `deploy-qa` verde, `deploy-prod` quedó `Waiting for review`, lo rechacé con un motivo propio y específico de esa corrida — "quiero revisar el smoke de QA de este merge antes de avanzar a PROD" (no el ejemplo de la guía). Confirmado por API: `gh api .../approvals` devuelve `{"state":"rejected","comment":"quiero revisar..."}`, y el job `deploy-prod` quedó en `conclusion: failure` — la máquina obedeció al rechazo.
+2. **Cambio real para la aprobación**: PR [#30](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/30), traduce el título de la pantalla de inventario ("Inventory" → "Mi Inventario") — un cambio de **código**, no un comentario del YAML, para poder mostrar en la defensa que lo que se aprueba de verdad llega a la pantalla.
+3. **Aprobación** ([run 39494151426](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39494151426)): aprobado, `deploy-prod` en verde. Verifiqué dos cosas, no me quedé con el check verde del pipeline:
+   - `gh api 'repos/.../deployments?environment=production'` devuelve el sha `72ac1b1` — el mismo commit del merge, no "lo último que había en `main`" en ese momento.
+   - El bundle JS que sirve `https://ingsoft3-front-prod-etlo.onrender.com` contiene literalmente el string `"Mi Inventario"` — el cambio aprobado está, de verdad, en la pantalla.
