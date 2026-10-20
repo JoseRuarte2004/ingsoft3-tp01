@@ -262,7 +262,8 @@ Cómo lo verifiqué:
 - La cadena del artefacto:
   1. Corrida de un PR con los tests en verde, "Entrar al registry" salteado: [run 39462721539](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39462721539).
   2. Corrida de `main` donde "Construir y publicar la imagen" es el último paso real: [run 39463068022](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39463068022) (primer intento falló por el problema 1 de abajo; [run 39465456299](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39465456299) la corrida ya con todo arreglado).
-- URLs de QA y PROD: _(pendiente — se completa cuando Render esté configurado)_.
+- URLs de QA: [front](https://ingsoft3-front-qa-g1m1.onrender.com) · [api](https://ingsoft3-api-qa-q9kf.onrender.com).
+- URLs de PROD: [front](https://ingsoft3-front-prod-etlo.onrender.com) · [api](https://ingsoft3-api-prod-62e4.onrender.com).
 
 ## El artefacto: el pipeline publica, y solo lo que verificó
 
@@ -275,3 +276,32 @@ Extendí el `ci.yml` del TP4/TP5 (PR [#22](https://github.com/JoseRuarte2004/ing
 - Declararlo **por job** (como ya hacía desde el TP4, por la misma razón) toca solo a los dos jobs que de verdad publican, y es independiente del default del repo.
 
 Verifiqué las dos cosas por separado, no una y asumí la otra: até el problema 1 al mensaje de error exacto (`write_package`, no un 403 genérico de autenticación), y después de arreglar el acceso del paquete, repetí la corrida con el default del repo ya vuelto a `read` y confirmó que publicaba igual — así supe que el permiso por job era, de verdad, el que importaba.
+
+## Los cuatro entornos: Render + Neon
+
+Riel elegido: **Render** (los 4 contenedores, Docker) + **Neon** (Postgres serverless, dos databases — `app_qa` y `app_prod`, mismo proyecto). No usé el Postgres de Render porque su tier gratis expira a los 30 días; el de Neon es permanente con límites de uso, no de tiempo.
+
+Los 4 servicios (todos *Web Service*, runtime Docker, plan Free, **Auto-Deploy en Off** en los cuatro):
+
+| Servicio | Root Directory | Variables |
+|---|---|---|
+| `ingsoft3-api-qa` | `api` | `DATABASE_URL` (Neon `app_qa`), `SESSION_SECRET`, `COOKIE_PARSER_SECRET` |
+| `ingsoft3-front-qa` | `client` | `BACKEND_URL` = URL de `ingsoft3-api-qa`, `DNS_RESOLVER=8.8.8.8` |
+| `ingsoft3-api-prod` | `api` | `DATABASE_URL` (Neon `app_prod`), `SESSION_SECRET`/`COOKIE_PARSER_SECRET` **distintos** de los de QA |
+| `ingsoft3-front-prod` | `client` | `BACKEND_URL` = URL de `ingsoft3-api-prod`, `DNS_RESOLVER=8.8.8.8` |
+
+**Auto-Deploy en Off es la decisión conceptual clave de esta sección**: Render sabe redesplegarse solo en cada push, pero entonces el deploy no pasaría por el pipeline — ni por el gate del TP4/TP5, ni por la aprobación de PROD que viene en §3.4. El deploy lo tiene que disparar **mi workflow**, no el proveedor.
+
+### Cómo comprobé que las bases son de verdad distintas
+
+No me alcanzó con que las variables dijeran cosas distintas — hice la prueba que pide la guía (§3.1, "el error más silencioso de todo el TP: PROD apuntando a la base de QA"), contra las URLs reales:
+1. Registré el usuario `qa-smoke` en QA.
+2. Registré el **mismo** `qa-smoke` en PROD — si las bases fueran la misma, hubiera rechazado el registro por username duplicado. Lo aceptó (`User creation successful`): son bases distintas.
+3. Con ese usuario logueado en PROD, creé un producto con un nombre inconfundible (`SOY-PROD-UNICO`).
+4. Logueado como el mismo usuario en QA, listé productos: solo aparece `Leche QA` (el que ya existía ahí) — `SOY-PROD-UNICO` **no** aparece.
+
+### Problemas encontrados en este bloque
+
+- **Un valor con espacio rompió la plantilla de nginx**: `BACKEND_URL` con algo de más en el campo *Value* de Render generó `set $backend_api ${BACKEND_URL};` con más de dos argumentos para nginx (`invalid number of arguments in "set" directive`). Lo reproduje localmente con un valor con espacio a propósito, confirmé el síntoma exacto, y lo arreglé poniéndole comillas al valor sustituido en la plantilla (`set $backend_api "${BACKEND_URL}";`): con comillas, nginx toma todo el valor como un solo argumento sin importar qué tenga adentro.
+- **El mismo tipo de error, dos veces**: el `DATABASE_URL` de `ingsoft3-api-prod` se cargó con el nombre de la variable repetido adentro del valor (`DATABASE_URL=postgresql://...` en vez de solo la URI), lo que rompía el parseo de Sequelize (`Cannot read properties of null (reading 'replace')`, porque `url.parse` no encuentra un protocolo válido al principio de la cadena). Mismo tipo de error de tipeo que el de `BACKEND_URL`, en un campo distinto.
+- **Un secreto se pegó en el chat por error** (la contraseña de Neon, en texto plano, pese a que se le había pedido explícitamente que no lo hiciera). Se rotó la contraseña del rol de Neon de inmediato y se actualizó `DATABASE_URL` en Render con la nueva — siguiendo la misma regla que el reglamento pide para cualquier credencial filtrada (§7): rotarla ya y contarlo acá.
