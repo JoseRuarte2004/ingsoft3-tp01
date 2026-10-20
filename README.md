@@ -2,6 +2,8 @@
 
 # ingsoft3-tp01
 
+[![CI](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/workflows/ci.yml/badge.svg)](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/workflows/ci.yml)
+
 ## App del semestre: YourInventoryManager
 
 Aplicación de gestión de inventario doméstico (qué tenés guardado, dónde y cuándo vence). Ver [decisiones.md](decisiones.md) para el porqué de esta elección.
