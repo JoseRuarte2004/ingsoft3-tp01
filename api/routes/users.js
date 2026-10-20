@@ -4,9 +4,7 @@ var passport = require("passport");
 var LocalStrategy = require("passport-local").Strategy;
 var bcrypt = require("bcrypt");
 var db = require("../database");
-// Use more salt rounds in production for greater security.
-const saltRounds = 10;
-const { v4: uuidv4 } = require("uuid");
+var { registrarUsuario } = require("../services/userService");
 
 var router = express.Router();
 
@@ -41,30 +39,8 @@ passport.use(new LocalStrategy(
 
 router.post("/register", async function (request, response) {
 	try {
-		const user = await db.user.findOne({
-			where:
-				db.sequelize.or(
-					{username: request.body.username},
-					{email: request.body.email}
-				)
-		});
-		if(!user) {
-			const hash = await bcrypt.hash(request.body.password, saltRounds);
-			await db.user.create({
-				username: request.body.username,
-				email: request.body.email,
-				password: hash,
-				uuid: uuidv4()
-			});
-			response.send("User creation successful.");
-		} else {
-			if(user["username"] === request.body.username){
-				response.send("An account with that username already exists.");
-			}
-			else if (user["email"] === request.body.email){
-				response.send("An account with that email already exists.");
-			}
-		}
+		const resultado = await registrarUsuario(request.body, db);
+		response.send(resultado.mensaje);
 	} catch (error) {
 		console.log(error);
 		response.status(500).send("Error creating user.");
