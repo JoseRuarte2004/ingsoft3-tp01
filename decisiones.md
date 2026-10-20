@@ -251,3 +251,27 @@ Cómo lo verifiqué:
 **Nota sobre el tag**: `v5.0.0` se cerró originalmente sobre el commit de [PR #18](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/18) (`a1379fd`). Después de la corrección de cobertura (PRs #19 y #20), moví el tag al commit final (`ae42372`, `git tag -f v5.0.0 && git push -f origin v5.0.0`), como indica el reglamento — así la defensa se navega sobre el punto correcto, no sobre la versión con el error de medición.
 
 **Sobre la corrección de la medición de cobertura** (después de cerrar el TP la primera vez): le pedí a Claude que releyera conmigo las secciones §2.4 y §3.3/§3.4 de la guía para confirmar si mi primera medición estaba bien hecha. Antes de aceptar el cambio, le pedí que midiera primero (sin fijar ningún umbral) y me mostrara los números reales — así fue como apareció el 100%/97% sospechoso del backend, que confirmó que había una trampa real (no hipotética) en mi primera versión. La decisión de extraer `userService.js` en vez de documentar el límite la tomé yo, después de que me mostrara las dos opciones con su costo. Volví a correr el smoke test completo en Docker después del refactor de `users.js`, no confié en que los tests unitarios alcanzaran para confirmar que el registro seguía funcionando.
+
+---
+
+# Decisiones — TP6 (CD: entornos, aprobaciones y deployment patterns)
+
+## Enlaces de este TP
+
+- Paquetes públicos: `ghcr.io/joseruarte2004/ingsoft3-tp01-backend` y `ghcr.io/joseruarte2004/ingsoft3-tp01-frontend`, confirmados con `docker pull` sin sesión.
+- La cadena del artefacto:
+  1. Corrida de un PR con los tests en verde, "Entrar al registry" salteado: [run 39462721539](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39462721539).
+  2. Corrida de `main` donde "Construir y publicar la imagen" es el último paso real: [run 39463068022](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39463068022) (primer intento falló por el problema 1 de abajo; [run 39465456299](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39465456299) la corrida ya con todo arreglado).
+- URLs de QA y PROD: _(pendiente — se completa cuando Render esté configurado)_.
+
+## El artefacto: el pipeline publica, y solo lo que verificó
+
+Extendí el `ci.yml` del TP4/TP5 (PR [#22](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/22)) para que, además de testear, publique las dos imágenes a `ghcr.io` etiquetadas con el commit (`sha-<commit>`). El paso que publica es el **último** del mismo job que corre los tests — no hay ningún `if` que diga "si los tests pasaron": está en el orden. Si el `docker run` de los tests devuelve rojo, el job muere ahí y el paso de publicar nunca llega a correr.
+
+**Problema 1 — el paquete no dejaba escribir al pipeline.** La primera corrida en `main` falló con `denied: permission_denied: write_package`, aunque el job ya declaraba `permissions: packages: write`. Causa: los paquetes `ingsoft3-tp01-backend`/`-frontend` se habían creado en el TP2 con un `docker push` manual (con mi token personal), no desde un workflow — y un paquete así **no queda conectado al repo**: el `GITHUB_TOKEN` automático de las corridas no tiene permiso de escritura sobre él aunque el job lo pida, hasta que alguien lo conecta a mano. Se arregla una sola vez, por paquete, desde *Package settings → Manage Actions access → Add Repository* (rol *Write*) — no hay API pública para esto, es solo desde la web.
+
+**Problema 2 — dónde declarar el permiso, y por qué importa.** Mientras diagnosticaba el problema 1, subí temporalmente el default de `Workflow permissions` del repo (*Settings → Actions → General*) de `read` a `write`, pensando que ahí estaba el límite. No era necesario: una vez conectado el paquete, `permissions: packages: write` **a nivel de job** alcanza solo, y volví el default del repo a `read`. La diferencia es la misma lección del TP4 (mínimo privilegio, pero ahora en dos niveles en vez de uno):
+- El default del **repo** es el techo que se aplica cuando un workflow **no** declara `permissions:` — dejarlo en `write` le da permiso de escritura de paquetes a cualquier workflow futuro que no lo declare explícitamente, aunque no publique nada.
+- Declararlo **por job** (como ya hacía desde el TP4, por la misma razón) toca solo a los dos jobs que de verdad publican, y es independiente del default del repo.
+
+Verifiqué las dos cosas por separado, no una y asumí la otra: até el problema 1 al mensaje de error exacto (`write_package`, no un 403 genérico de autenticación), y después de arreglar el acceso del paquete, repetí la corrida con el default del repo ya vuelto a `read` y confirmó que publicaba igual — así supe que el permiso por job era, de verdad, el que importaba.
