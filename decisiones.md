@@ -137,3 +137,105 @@ Cómo lo verifiqué:
 - Antes de abrir el PR de la demo, corrí `docker build ./api` en mi máquina y vi el error 404 real, para no depender de la corrida en el runner para confirmar que la rotura funcionaba.
 - Vi en vivo el rechazo de `gh pr merge` sobre el PR bloqueado, y el cambio de estado a `BEHIND` y después `CLEAN` en el PR del badge — no asumí que `strict: true` funcionaba, lo confirmé con la API en cada paso.
 - Cada push y cada merge los aprobé yo explícitamente antes de que se ejecutaran.
+
+---
+
+# Decisiones — TP5 (Testing y calidad)
+
+## Mi stack vs. el de la guía (tabla "Tu stack, de un vistazo")
+
+La guía está escrita sobre .NET + vitest. Mi stack es Node/Express + Jest de los dos lados (backend y frontend, ya que el frontend es una Create React App ejectada con Jest, no vitest). Equivalencias usadas:
+
+| Lo que pide la guía | Lo que usé |
+|---|---|
+| Parametrizado (`[Theory]`/`it.each`) | `test.each` (Jest, los dos lados) |
+| Fabricar el doble | `jest.fn()` (inyección por parámetro) y `jest.mock()` (reemplazo de módulo completo) — usé las **dos** técnicas, ver abajo |
+| Medir cobertura | `--coverage` de Jest (provider nativo V8) |
+| Umbral que rompe el build | `coverageThreshold` de Jest (`package.json` → `"jest"` → `"coverageThreshold"`) |
+| Qué entra en la cuenta | `collectCoverageFrom` de Jest (incluye, no excluye — ver abajo por qué elegí esa dirección en el frontend) |
+| Reporte legible | `coverageReporters: ["text","html","lcov","json-summary"]` — el `json-summary` es el que lee el paso del pipeline para armar la tabla del Job Summary |
+
+## Qué lógica elegí testear y por qué
+
+Elegí la **validación de productos** como núcleo de la suite porque es donde un bug duele de verdad en esta app: antes del TP5, `POST /products` no validaba absolutamente nada (lo detectamos en el Paso 0) — se podía crear un producto con nombre vacío, cantidad negativa, o sin lugar de almacenamiento, y quedaba en la base tal cual. Es exactamente el tipo de regla que un test automático tiene que proteger, porque un `curl` manual durante el desarrollo no la va a probar con los casos límite.
+
+También testeé `matchUserCredentials` (ownership: que un usuario no pueda tocar productos de otro) porque es una regla de seguridad, no solo de UX — si se rompe, no se nota mirando la pantalla, se nota cuando alguien ve datos ajenos.
+
+## El refactor que hizo falta para poder mockear
+
+`api/routes/products.js` importaba `db` (el módulo de Sequelize) directo adentro del archivo. Así, no hay forma de que un test le pase un doble: el `require("../database")` está hardcodeado en el módulo. Extraje `api/services/productService.js`, que valida y después hace `db.product.create(...)` — pero recibe `db` **por parámetro**, no lo importa. La ruta le pasa el `db` real; el test le pasa un objeto falso (`{ product: { create: jest.fn() } }`). Es la misma idea que `INotificador` en el ejemplo de la guía: la dependencia entra desde afuera.
+
+Para `matchUserCredentials.js` usé la otra técnica (`jest.mock("../database", () => ...)`, que reemplaza el módulo entero) en vez de refactorizarlo — a propósito, para demostrar las dos formas de mockear que existen en Jest, no solo una.
+
+## Umbral de cobertura: el número y por qué
+
+**Backend** — `lines: 25`, `branches: 40` sobre mi medición real de hoy (27.02% líneas, 43.75% ramas — [ver el Job Summary de un run verde](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39454006275)). Empecé en 15/25 (mi número real en ese momento era 16.92/31.25) y lo subí en el PR [#16](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/16) cuando la suite del PR del gate ([#15](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/15)) hizo subir el número real — si lo hubiera dejado en 15/25, el umbral habría dejado de frenar nada.
+
+Lo bajo que es el número (comparado con el 70-80% típico de los ejemplos de la guía) tiene una razón concreta y la cuento sin esconderla: **dejé `routes/*.js` adentro de la cuenta** (`csrf.js`, `products.js`, `users.js` — 0% cada uno) porque tienen lógica real sin testear (el chequeo de usuario/email duplicado en `users.js`, el manejo de sesión) que no llegué a cubrir esta semana por tiempo. Excluirlos habría sido exactamente la trampa que la guía marca: "esconder lo que no testeé" en vez de "medir lo que importa". **Qué haría falta para subirlo**: tests de integración tipo `supertest` sobre esas tres rutas (fuera del alcance de unit tests — para eso está el TP7).
+
+**Frontend** — `lines: 85`, `branches: 75` sobre mi medición real (88.23% líneas, 77.77% ramas). Acá el número es alto porque, siguiendo lo que dice la propia guía ("la UI completa se verifica end-to-end en el TP7, contra la app desplegada de verdad"), **la cuenta (`collectCoverageFrom`) mide solo los tres módulos puros/inyectables que escribí** (`validarProductoForm.ts`, `productsClient.ts`, `fetchcsrf.ts`) — no los componentes React (`Inventory.tsx`, `Authentication.tsx`), que no tienen una sola prueba todavía y se dejan para el e2e con navegador del TP7.
+
+## Qué dejé afuera de la cuenta de cobertura, y por qué
+
+- **Backend** (`collectCoverageFrom` con exclusiones): `bin/` (arranque — `www`, `migrate.js`), `app.js` (cableado de middlewares, sin reglas de negocio), `database.js` (definición de modelos de Sequelize — son las "clases de datos" del §2.4, solo propiedades). Son exactamente las dos familias que la guía nombra: arranque y datos.
+- **Backend, lo que NO excluí aunque arrastra el número para abajo**: `routes/*.js` — tienen lógica real, así que quedan adentro (ver arriba).
+- **Frontend** (`collectCoverageFrom` por inclusión, no por exclusión): listo explícitamente los tres módulos puros. Todo lo demás (componentes, `App.js`, `index.tsx`) queda afuera porque es UI — se verifica con interacción real en el TP7, no con un test sin DOM.
+
+## Por qué coverage alto no garantiza calidad (con mi propio ejemplo)
+
+Si `api/services/productService.test.js` tuviera este test:
+
+```js
+test("crea un producto", async () => {
+  const dbFalso = { product: { create: jest.fn().mockResolvedValue({}) } };
+  await crearProducto(productoValido, 1, dbFalso);
+  // sin ningún expect
+});
+```
+
+ese test deja `crearProducto` al 100% de líneas ejecutadas (entra, valida, llama a `create`, retorna) y **no verifica absolutamente nada** — ni que `create` se haya llamado con los datos correctos, ni que el resultado tenga la forma esperada. Es exactamente el `CoberturaSinVerdad` de la guía: coverage mide que el código **corrió**, no que alguien comprobó que hizo lo correcto. Mis tests reales, en cambio, sí hacen `expect(dbFalso.product.create).toHaveBeenCalledWith(...)` — verifican la interacción, no solo la ejecución.
+
+## El ejercicio del camino sin cubrir
+
+**Línea**: `api/utilities/validarProducto.js`, línea 6 (`const datos = producto || {};`). La primera corrida de la suite (antes del último test que agregué) marcaba esa rama en naranja: el `|| {}` nunca se ejercitaba con el lado izquierdo falsy — solo entraba con `producto` siempre presente.
+
+**Qué entrada la recorrería**: `validarProducto(null)` o `validarProducto(undefined)` — el caso defensivo de "nadie llama bien a la función".
+
+**Qué decidí**: agregarlo (está en `api/utilities/validarProducto.test.js`, el test `"rechaza cuando no se pasa ningún producto"`). Es una entrada real y barata de cubrir — no hay motivo para dejarla afuera.
+
+## El Pull Request bloqueado (Tarea 3)
+
+**PR mergeado** ([#15](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/15)): agregué `api/utilities/estadoVencimiento.js` (clasifica productos por vencimiento) sin un solo test.
+- Corrida roja: [run 39453746457](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39453746457) — `build-api` falla, pero **los 12 tests existentes pasan todos**. El check se rompió por **cobertura de líneas**: `Jest: Coverage for lines (14.86%) does not meet "global" threshold (15%)` (el log lo dice textual).
+- `gh pr view` mostró `mergeStateStatus: BLOCKED`.
+- Arreglo: agregué `estadoVencimiento.test.js` (un test por cada camino que el código nuevo declara: `sin-fecha`, `vencido`, `por-vencer`, `esta-semana`, `fresco`, y los 5 casos de `prioridadDeAlerta`).
+- Corrida verde: [run 39454006275](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39454006275), `mergeStateStatus: CLEAN`, mergeado.
+
+**PR que queda abierto y en rojo hasta la defensa** ([#17](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/17)): `api/utilities/normalizarStorageLocation.js`, sin tests, rompe por **cobertura de ramas**: `Jest: Coverage for branches (36.08%) does not meet "global" threshold (40%)` ([run 39454908964](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39454908964)). **A propósito no se toca**: queda como la prueba de que el freno funciona sin depender de una captura de pantalla.
+
+## Problemas encontrados y cómo los resolví
+
+- **`jest` no estaba instalado en `api/`** pese a que `"test": "jest"` y `api/database.test.js` ya existían — `npm test` fallaba con `jest: command not found`. Lo encontré corriendo `npm test` antes de escribir nada, no asumiendo que "ya pasaba" porque lo decía `decisiones.md` del TP2.
+- **`client/package.json` tenía `"testRunner"` apuntando a una ruta absoluta** de la máquina del autor original del repo open source (`/home/elliot/programming/...`). Rota en cualquier otra máquina. La arreglé apuntando al módulo relativo (`jest-circus/runner`).
+- **`api/Dockerfile` no copiaba la carpeta `services/` nueva a la imagen final**: lo detecté corriendo el smoke test completo contra el stack levantado en Docker, no confiando solo en que `npm test` pasara en mi máquina.
+- **Los `yarn.lock` se reescribían solos** al correr `npm install`/`npm ci` (aunque el build real usa `npm ci` con `package-lock.json`). Revertí esos cambios para no meter un diff de 20.000 líneas irrelevante.
+- **El umbral del backend quedó obsoleto a mitad de semana**: subió la cobertura real por los PRs del gate y dejé de poder romperlo con un archivo chico para la segunda demo. Lo subí (PR #16) antes de seguir, documentado arriba.
+
+## Enlaces de este TP
+
+- Suite de unit tests: [PR #13](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/13)
+- Cobertura + etapa de tests en el pipeline: [PR #14](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/14)
+- Demo del gate (mergeado): [PR #15](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/15) — rojo: [run 39453746457](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39453746457) · verde: [run 39454006275](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39454006275)
+- Ajuste del umbral: [PR #16](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/16)
+- Demo del gate (abierto, en rojo hasta la defensa): [PR #17](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/17) — [run 39454908964](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39454908964)
+
+## Declaración de uso de IA — TP5
+
+Usé Claude Code para toda la implementación: el diseño de la suite (qué testear y por qué), el refactor de inyección de dependencias, la configuración de cobertura en los dos lados, las etapas de Docker y los PRs de demostración.
+
+Cómo lo verifiqué:
+- Antes de escribir un solo test, corrí `npm test` en los dos lados y confirmé con mis propios ojos que los dos fallaban (por motivos distintos) — no asumí que "ya andaban" porque un `decisiones.md` anterior lo decía.
+- Después del refactor de `products.js`, corrí un smoke test completo contra el stack real en Docker (registro, login, alta válida 200, alta inválida 400) — eso fue lo que encontró el bug del `Dockerfile` que no copiaba `services/`.
+- Calculé a mano cuántas líneas/ramas nuevas hacían falta para que cada PR de demostración realmente rompiera el umbral (no tanteé a ciegas), y medí el resultado real con `npm run test:ci` antes de pushear cada uno.
+- Leí el log de cada corrida roja (`gh run view --log`) para confirmar que decía lo que yo esperaba que dijera, no solo que el job estuviera en rojo.
+- Cada push y cada merge los aprobé yo explícitamente antes de que se ejecutaran.
