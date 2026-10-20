@@ -18,7 +18,7 @@ server {
     # el DNS interno de Docker y el nombre del servicio; en Render, un DNS
     # público y la URL de la api de ESTE entorno (TP6 §3.3).
     resolver ${DNS_RESOLVER} valid=10s ipv6=off;
-    set $backend_api ${BACKEND_URL};
+    set $backend_api "${BACKEND_URL}";
 
     # Sin proxy_set_header Host: el default de nginx (Host: $proxy_host, el host
     # de $backend_api) es lo que Render necesita para rutear al servicio correcto
