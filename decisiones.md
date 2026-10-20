@@ -396,22 +396,54 @@ _(en progreso — se completa a medida que avanza el TP)_
 - `dependabot.yml` (3 ecosistemas: `npm` en `api/`, `npm` en `client/`, `github-actions` en `/`): [PR #35](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/35)
 - PR de Dependabot analizado y mergeado: [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (`actions/checkout` 6→7)
 
-## Dependabot: qué actualicé y por qué me animé a mergearlo
+## Dependabot: qué PR mergeamos, y por qué
 
-A los pocos segundos de mergear `dependabot.yml` ya tenía 5 PRs abiertos en los tres ecosistemas — mucho más rápido que lo que avisa la guía ("a veces tarda horas"). Elegí [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (`actions/checkout` de 6 a 7, **major** según su propio versionado) para el primer merge, de entre estos cinco:
+A los pocos segundos de mergear `dependabot.yml` ya había 5 PRs abiertos en los tres ecosistemas — mucho más rápido que lo que avisa la guía ("a veces tarda horas"). Le pedí a **Claude Code** que analizara esos cinco (changelog real de cada paquete/acción, no solo el número de versión) antes de elegir cuál mergear para el checkpoint:
 
-| PR | Qué actualiza | SemVer | Por qué lo descarté (por ahora) |
+| PR | Qué actualiza | SemVer | Por qué lo descartamos (por ahora) |
 |---|---|---|---|
-| #37 `actions/upload-artifact` 6→7 | Acción del pipeline | Major | No lo analicé a fondo — dejé uno solo del lote de actions para no mezclar dos análisis en la misma entrega |
+| #37 `actions/upload-artifact` 6→7 | Acción del pipeline | Major | No se analizó a fondo — dejamos uno solo del lote de actions para no mezclar dos análisis en la misma entrega |
 | #38 `morgan` 1.9.1→1.12.1 (`api/`) | Logging HTTP | Minor | Toca código de la app; lo dejo para una vuelta con más tiempo de revisión |
 | #39 `cookie-parser` 1.4.5→1.4.7 (`api/`) | Parseo de cookies | Patch | Candidato razonable, pero #36 era más fácil de defender sin ambigüedad |
 | #40 `cookie-session` 1.4.0→2.1.1 (`api/`) | **Sesiones/login** | **Major** | Riesgo real: un salto de mayor a mayor en la librería que maneja la sesión necesita probar el login de punta a punta, no solo un check verde — lo dejo para cuando tenga tiempo de testearlo a mano |
 
-Por qué me animé con el #36 sin dudar:
+Con ese análisis sobre la mesa, **elegí yo** [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (`actions/checkout` de 6 a 7, **major** según su propio versionado):
 - **No toca código de la app** — es una acción del pipeline (`ci.yml`), no una dependencia de `api/` ni `client/`: si algo saliera mal, rompe el CI, no la aplicación en producción.
-- **Leí el changelog de la v7 antes de mergear**: el único cambio que rompe algo es que bloquea el checkout de forks en eventos `pull_request_target`/`workflow_run` (hardening de seguridad, no un bug). Mi `ci.yml` (`.github/workflows/ci.yml:3-7`) solo dispara con `pull_request` y `push` — ningún job mío usa esos dos triggers, así que ese breaking change no me toca.
+- **El changelog de la v7** (lo buscó y leyó Claude Code, con una búsqueda web, porque GitHub no publica el CHANGELOG.md completo en la propia página del PR): el único cambio que rompe algo es que bloquea el checkout de forks en eventos `pull_request_target`/`workflow_run` (hardening de seguridad, no un bug). Verifiqué yo mismo el dato clave antes de confiar en el resumen: `grep` sobre `.github/workflows/ci.yml` confirma que mi pipeline solo dispara con `pull_request` y `push` (línea 4 y 6) — ningún job mío usa esos dos triggers, así que ese breaking change no me toca.
 - El pipeline ya estaba **verde** sobre la rama del PR antes de mergear (run [39511461705](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39511461705)) — y ese verde es todo mi semestre (TP4/TP5) diciéndome que podía mergear con confianza.
+
+Claude Code ejecutó el merge (`gh pr merge 36 --squash --delete-branch`) después de que yo eligiera esa opción explícitamente entre las que me presentó.
+
+## Las 650 vulnerabilidades: qué son de verdad, y qué no
+
+Al prender las alertas, GitHub reportó 650 alertas abiertas en `main` (47 críticas, 330 altas, 218 moderadas, 55 bajas). Antes de asumir que eso son 650 problemas reales en lo que corre en PROD, le pedí a Claude Code que las bajara por API (`gh api repos/.../dependabot/alerts --paginate`) y las cruzara por `scope` (`runtime`/`development`, según cómo está declarada cada dependencia en su `package.json`) y por `manifest` (el lockfile donde aparece cada alerta). Resultado, verificado por mí contra la API, no asumido:
+
+| Manifest | Alertas abiertas | De las cuales `runtime` |
+|---|---|---|
+| `api/package-lock.json` | 161 | 155 (6 son `development`) |
+| `api/yarn.lock` | 163 | 157 (6 son `development`) |
+| `client/package-lock.json` | 97 | 97 |
+| `client/yarn.lock` | 229 | 229 |
+
+**El primer hallazgo real**: ninguno de mis dos `Dockerfile` usa `yarn` — lo confirmé con `grep -rn "yarn" api/Dockerfile client/Dockerfile .github/workflows/ci.yml`, sin ningún resultado. Los dos instalan con `npm ci` leyendo `package-lock.json` (`api/Dockerfile:9,24`, `client/Dockerfile:10`). El `yarn.lock` es un resto del repo heredado (ya lo noté en el TP5: "los `yarn.lock` se reescribían solos al correr `npm install`/`npm ci`, aunque el build real usa `npm ci` con `package-lock.json`") que ningún paso del build toca. Eso saca **392 de las 650 alertas** (163 + 229) de la cuenta de "lo que corre de verdad": están sobre un archivo que nadie lee para construir nada.
+
+De las **258 que quedan** (sobre `package-lock.json`, el lockfile que de verdad se instala):
+- **`api/` (161, de las cuales 155 `runtime` y 6 `development`)**: mi `api/Dockerfile` tiene una etapa separada (`prod-deps`, línea 24) que instala con `npm ci --omit=dev` para la imagen final — las `devDependencies` nunca llegan a la imagen que corre en QA/PROD. Quedan **155 alertas sobre paquetes que sí están instalados en el backend corriendo ahora mismo** (de esas 155: 9 críticas, 80 altas, 52 moderadas, 14 bajas — confirmado filtrando la misma API por `scope=runtime` y `manifest=api/package-lock.json`).
+- **`client/` (97, todas `runtime`)**: mi `client/Dockerfile` no copia ningún `node_modules` a la imagen final — la etapa de nginx solo sirve el bundle estático que produjo `npm run build` (`COPY --from=build /app/build`, línea 26). No hay ningún proceso Node corriendo en el contenedor de frontend que tenga estos 97 paquetes instalados. **Lo que no verifiqué, y por eso no lo afirmo**: si el código vulnerable de cada uno de esos paquetes terminó o no empaquetado dentro del JS que de verdad baja al navegador — depende de si la app lo importa, paquete por paquete, y no lo revisé uno por uno.
+
+**Por qué no las arreglé todas en este TP**: la tarea pide activar Dependabot y mergear **un** PR analizado, no una limpieza completa de 650 alertas — y, como muestra la tabla, una parte grande de ese número ni siquiera corresponde a algo que se instale en un build real. El número que de verdad me importa seguir de cerca es el de **155** (backend, `runtime`, en la imagen que corre en QA/PROD): ahí es donde un PR de Dependabot mergeado de verdad baja el riesgo, y es la cola de trabajo que dejo para después de esta entrega (empezando por las 9 críticas).
 
 ## Problemas encontrados y cómo los resolví (hasta ahora)
 
-- Cada `push`/merge a `main` dispara `deploy-qa` (automático) y `deploy-prod` (esperando aprobación), aunque el cambio sea solo documentación o `dependabot.yml`. Una corrida de ésas (commit `82673f3`, el fix de la nota del tag) ya la rechacé a propósito con un motivo explícito, para no repetir el error que generó la corrección de `v6.0.0` arriba. Las demás quedan esperando sin tocar hasta decidir caso por caso.
+- Cada `push`/merge a `main` dispara `deploy-qa` (automático) y `deploy-prod` (esperando aprobación), aunque el cambio sea solo documentación o `dependabot.yml`. El commit `82673f3` (el fix de la nota del tag) lo rechacé yo mismo por API, antes de pedirle nada a Claude Code sobre esto. Los commits `ff86cc0` (merge de `dependabot.yml`) y `cd28d44` (merge de la nota de Dependabot en este mismo archivo) también quedaron esperando — le pedí a Claude Code que los rechazara por API con el mismo motivo ("cambios de configuración y documentación del TP9; el próximo deploy a PROD es el de Sentry, que cierra el TP9"), lo ejecutó, y confirmó por API que no quedó ninguno pendiente. La regla que me había puesto en el TP6 ("PROD tiene que seguir en `v6.0.0`") queda reemplazada por esta: el próximo `deploy-prod` que apruebo es el de Sentry, y `v9.0.0` se etiqueta sobre ese commit.
+
+## Declaración de uso de IA — TP9 (hasta ahora)
+
+Usé Claude Code para: escribir `.github/dependabot.yml`, buscar y leer el changelog de los 5 PRs de Dependabot antes de que yo eligiera cuál mergear, ejecutar ese merge y los rechazos de `deploy-prod` por API, y bajar/cruzar las 650 alertas de Dependabot por `scope` y `manifest`.
+
+Cómo lo verifiqué:
+- Las alertas y las security updates de Dependabot las prendí por API (`vulnerability-alerts`, `automated-security-fixes`) y confirmé yo mismo, leyendo la respuesta de cada endpoint, que quedaron activas — no asumí que el comando "debía haber funcionado".
+- Antes de aceptar la lectura del changelog de `actions/checkout` v7, le pedí que confirmara el dato clave contra mi propio repo (qué triggers usa mi `ci.yml`) — no contra la documentación en general, sino contra el archivo real.
+- El desglose de las 650 vulnerabilidades lo pedí específicamente "con los números reales" y "sin afirmar nada que los números no confirmen" — y antes de aceptar la conclusión de que el `yarn.lock` no importa, pedí el `grep` que lo prueba (que ningún Dockerfile ni el pipeline lo lean), no me quedé con la explicación sola.
+- Elegí yo cuál de los 5 PRs de Dependabot mergear, entre las opciones que me presentó con su análisis — no delegué esa decisión.
+- Los rechazos de `deploy-prod` que no son el cierre de un TP: decidí yo la regla (no aprobar fuera del cierre de un TP) y el motivo exacto; Claude Code los ejecutó por API cuando se lo pedí.
