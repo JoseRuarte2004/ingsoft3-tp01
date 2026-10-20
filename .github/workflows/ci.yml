@@ -30,6 +30,43 @@ jobs:
           cache-from: type=gha,scope=api
           cache-to: type=gha,mode=max,scope=api
 
+      - name: Construir la etapa de tests del backend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./api
+          target: test
+          load: true
+          push: false
+          tags: api-test:ci
+          cache-from: type=gha,scope=api-test
+          cache-to: type=gha,mode=max,scope=api-test
+
+      - name: Correr los tests del backend con coverage
+        run: |
+          mkdir -p api-coverage
+          docker run --rm -v "${{ github.workspace }}/api-coverage:/app/coverage" api-test:ci
+
+      - name: Resumen del coverage del backend
+        if: ${{ !cancelled() }}
+        run: |
+          F=api-coverage/coverage-summary.json
+          test -f "$F"
+          node -e "
+            const t = require('./$F').total;
+            if (!t.lines.total) { console.error('midió 0 archivos: revisá collectCoverageFrom'); process.exit(1); }
+            const f = (m) => \`| \${m} | \${t[m].pct}% |\`;
+            console.log('### Coverage del backend');
+            console.log('| métrica | % |'); console.log('|---|---|');
+            console.log(f('lines')); console.log(f('branches')); console.log(f('functions'));
+          " >> $GITHUB_STEP_SUMMARY
+
+      - name: Publicar el coverage del backend
+        uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-backend
+          path: api-coverage
+
   build-client:
     runs-on: ubuntu-latest
     steps:
@@ -52,3 +89,40 @@ jobs:
           tags: client:ci
           cache-from: type=gha,scope=client
           cache-to: type=gha,mode=max,scope=client
+
+      - name: Construir la etapa de tests del frontend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./client
+          target: test
+          load: true
+          push: false
+          tags: client-test:ci
+          cache-from: type=gha,scope=client-test
+          cache-to: type=gha,mode=max,scope=client-test
+
+      - name: Correr los tests del frontend con coverage
+        run: |
+          mkdir -p client-coverage
+          docker run --rm -v "${{ github.workspace }}/client-coverage:/app/coverage" client-test:ci
+
+      - name: Resumen del coverage del frontend
+        if: ${{ !cancelled() }}
+        run: |
+          F=client-coverage/coverage-summary.json
+          test -f "$F"
+          node -e "
+            const t = require('./$F').total;
+            if (!t.lines.total) { console.error('midió 0 archivos: revisá collectCoverageFrom'); process.exit(1); }
+            const f = (m) => \`| \${m} | \${t[m].pct}% |\`;
+            console.log('### Coverage del frontend');
+            console.log('| métrica | % |'); console.log('|---|---|');
+            console.log(f('lines')); console.log(f('branches')); console.log(f('functions'));
+          " >> $GITHUB_STEP_SUMMARY
+
+      - name: Publicar el coverage del frontend
+        uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-frontend
+          path: client-coverage

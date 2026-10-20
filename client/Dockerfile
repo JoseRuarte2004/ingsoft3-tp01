@@ -12,7 +12,11 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ---- Etapa 2: nginx sirve los estáticos ----
+# ---- Etapa 2: tests (parte del build: ya tiene Node y las devDependencies) ----
+FROM build AS test
+ENTRYPOINT ["npm", "run", "test:ci"]
+
+# ---- Etapa 3: nginx sirve los estáticos ----
 FROM nginx:1.27-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/build /usr/share/nginx/html
