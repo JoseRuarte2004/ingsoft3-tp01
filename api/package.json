@@ -73,17 +73,23 @@
 			"!bin/**",
 			"!app.js",
 			"!database.js",
+			"!routes/**",
 			"!**/*.test.js",
 			"!node_modules/**",
 			"!coverage/**",
 			"!processes.json",
 			"!.eslintrc.js"
 		],
-		"coverageReporters": ["text", "html", "lcov", "json-summary"],
+		"coverageReporters": [
+			"text",
+			"html",
+			"lcov",
+			"json-summary"
+		],
 		"coverageThreshold": {
 			"global": {
-				"lines": 25,
-				"branches": 40
+				"lines": 85,
+				"branches": 80
 			}
 		}
 	}

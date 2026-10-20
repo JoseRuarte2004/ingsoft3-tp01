@@ -111,17 +111,15 @@
 			"<rootDir>/src"
 		],
 		"collectCoverageFrom": [
-			"src/inventory/validarProductoForm.ts",
-			"src/api/productsClient.ts",
-			"src/utilities/fetchcsrf.ts"
+			"src/logic/**/*.ts",
+			"!src/logic/**/*.test.ts"
 		],
-		"coverageReporters": ["text", "html", "lcov", "json-summary"],
-		"coverageThreshold": {
-			"global": {
-				"lines": 85,
-				"branches": 75
-			}
-		},
+		"coverageReporters": [
+			"text",
+			"html",
+			"lcov",
+			"json-summary"
+		],
 		"setupFiles": [
 			"react-app-polyfill/jsdom"
 		],
@@ -162,7 +160,13 @@
 			"jest-watch-typeahead/filename",
 			"jest-watch-typeahead/testname"
 		],
-		"resetMocks": true
+		"resetMocks": true,
+		"coverageThreshold": {
+			"global": {
+				"lines": 85,
+				"branches": 75
+			}
+		}
 	},
 	"babel": {
 		"presets": [

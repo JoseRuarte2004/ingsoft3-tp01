@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Form, Button, Alert } from "react-bootstrap";
 import { useHistory } from "react-router-dom";
-import { fetchCsrf } from "../utilities/fetchcsrf";
+import { fetchCsrf } from "../logic/fetchcsrf";
 
 const Authentication = () => {
 
