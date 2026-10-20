@@ -86,3 +86,54 @@ Cómo lo verifiqué (no acepté "quedó listo" sin ver el resultado real de cada
 - Después de publicar, cambié la visibilidad de los dos packages a público yo mismo desde la web (Claude no pudo hacerlo por API — es una limitación conocida del endpoint de GitHub), y lo verifiqué con `docker pull` sin sesión antes de darlo por confirmado.
 - Cuando GitHub marcó el PR del TP2 como en conflicto, revisé yo mismo el diff de la resolución (qué contenido venía de cada lado, y por qué se resolvió como se resolvió) antes de aceptar el merge commit.
 - No se mergeó el PR del TP2 ni se pusheó el tag `v2.0.0`: eso lo reviso y lo apruebo yo antes de que se ejecute.
+
+---
+
+# Decisiones — TP4 (CI)
+
+## Estructura del pipeline: por qué esos dos jobs, y por qué en paralelo
+
+El workflow (`.github/workflows/ci.yml`) tiene dos jobs, `build-api` y `build-client` — los nombré así, no `build-backend`/`build-frontend` como sugiere la guía, porque mis carpetas son `api/` y `client/` y prefiero que el nombre del check coincida con la carpeta real. Dos jobs porque mi app tiene **dos Dockerfiles independientes** (TP2): uno para el backend Node/Express y otro para el frontend React servido por nginx. No comparten nada en build time — ni dependencias, ni etapas, ni artefactos — así que no hay ninguna razón para serializarlos: cada uno corre en su propio runner limpio, en paralelo, y un PR que solo toca `client/` no hace más lento el chequeo del backend.
+
+Corren en `pull_request` (contra `main`) y en `push` (a `main`). El primero es el que importa de verdad: verifica el resultado propuesto *antes* de que exista en `main`, y es el que alimenta al gate (abajo). El segundo no verifica nada nuevo —lo que entra a `main` ya pasó por un PR verde— pero cumple dos funciones: le da al badge del README una corrida de la que leer el estado, y deja el cache de capas sembrado en `main`, que es lo que cualquier PR nuevo va a poder reutilizar desde su primera corrida (ver abajo).
+
+## Qué cachea, qué no, y qué pasa si desaparece
+
+Se cachean las **capas de la imagen Docker** de cada etapa de build — no el código fuente ni los artefactos finales. Uso `docker/setup-buildx-action` (el constructor de fábrica no sabe exportar cache a un almacén externo, solo al disco del runner, que se destruye al terminar el job) y `cache-from`/`cache-to: type=gha` con un **scope distinto por job** (`scope=api`, `scope=client`). Sin el scope separado, los dos jobs comparten el mismo estante de cache por default y se pisan entre sí — el síntoma es que un job muestra `CACHED` y el otro no, y cuál cambia de corrida en corrida.
+
+Evidencia de que funciona: en la segunda corrida del PR #9 ([run 39445545262](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39445545262)), tanto `build-api` como `build-client` muestran varias capas `CACHED` (instalación de dependencias con `npm ci`, principalmente — son las etapas más caras y las que menos cambian commit a commit).
+
+**Si el cache desaparece** (GitHub lo desaloja por tamaño o antigüedad, o es la primera corrida de un PR nuevo contra una `main` que todavía no lo sembró), el pipeline no falla: vuelve a construir esa capa desde cero. El cache es una optimización de tiempo, no una dependencia funcional — si algo solo funciona *con* cache, lo que hay ahí no es un cache, es una dependencia escondida.
+
+## Por qué el pipeline construye con mi Dockerfile y no compila por su cuenta
+
+Si el workflow tuviera pasos propios de `npm ci` / `npm run build` en vez de delegar en `docker build ./api` y `docker build ./client`, tendría **dos definiciones de build**: la que usa el pipeline para verificar y la que usan mis Dockerfiles para lo que después se despliega (TP6/TP7). Son procesos distintos que tarde o temprano divergen — por ejemplo, si cambio una versión de Node en el Dockerfile y me olvido de replicarlo en el workflow, estaría verificando una compilación distinta de la que realmente se corre en producción. Delegar en el Dockerfile también es lo que hace que este mismo workflow sirva para cualquier stack: no hay una sola línea de Node ni de configuración específica de mi app en `ci.yml` — todo lo que sabe compilar mi app vive en `api/Dockerfile` y `client/Dockerfile`, no en el pipeline.
+
+## El gate: qué exige hoy `main` para aceptar un merge
+
+Después de la primera corrida verde, reconfiguré la protección de `main` (`gh api --method PUT .../branches/main/protection`) agregando `required_status_checks` sin perder lo que ya tenía del Paso 0 — el PUT reemplaza el JSON entero, así que tuve que releer el estado actual antes de escribir el nuevo. Hoy `main` exige dos cosas para un merge: **PR obligatorio** (0 aprobaciones requeridas, se aplica incluso a mí como admin — del TP1/Paso 0) y **los dos checks (`build-api`, `build-client`) en verde, con `strict: true`** (la rama tiene que estar actualizada contra `main`, no solo pasar los checks sobre una base vieja).
+
+## Demostración del gate actuando
+
+PR #11 ([feature/demo-gate](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/11)): agregué una dependencia inexistente (`paquete-que-no-existe-xyz123`) a `api/package.json` sin tocar `package-lock.json`, lo que rompe `npm ci --omit=dev` dentro del Dockerfile (mi backend no compila ni empaqueta, así que la forma real de romper su build es una dependencia, no un import — un `require` a un archivo inexistente nunca se ejecuta durante `docker build`, porque nadie corre el código en esa etapa).
+
+- Corrida en rojo: [run 39446236934](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39446236934) — `build-api` falla con un 404 del registry de npm, `build-client` sigue en verde (son independientes).
+- `gh pr view 11` mostró `mergeStateStatus: BLOCKED`, y `gh pr merge 11 --squash` lo rechazó explícitamente: *"the base branch policy prohibits the merge"*.
+- Fix en el commit siguiente (saco la dependencia): corrida en verde, [run 39446411454](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39446411454), `mergeStateStatus: CLEAN`, mergeado.
+
+De paso, aproveché el PR #10 (el del badge, abierto en simultáneo) para mostrarme a mí mismo el efecto de `strict: true`: al mergear el #11, el #10 pasó a `mergeStateStatus: BEHIND` (su base ya no era la última `main`), y actualicé su rama con el endpoint de "Update branch" (`PUT /pulls/10/update-branch`) y recién ahí volvió a `CLEAN`.
+
+## Problemas encontrados y cómo los resolví
+
+- El PUT de branch protection **reemplaza el JSON entero**: si solo mandaba `required_status_checks`, perdía `enforce_admins`, `allow_force_pushes: false`, etc. del Paso 0. Solución: leer primero el estado actual con `gh api .../protection` (GET) y recién armar el PUT con todos los campos, no solo el nuevo.
+- Para romper el build de un backend Express sin paso de compilación, un `import`/`require` roto no sirve (nadie ejecuta el código durante `docker build`) — hay que romper algo que el Dockerfile sí ejecuta en build time, en este caso la instalación de dependencias.
+
+## Declaración de uso de IA — TP4
+
+Usé Claude Code para la implementación completa de este TP: el workflow, la configuración del gate por API, y el armado de los tres PRs (pipeline, badge, demo).
+
+Cómo lo verifiqué:
+- Miré las dos corridas del PR #9 en la pestaña *Actions* y confirmé con `grep` sobre el log (`gh run view --log`) que las capas realmente decían `CACHED`, no lo di por hecho porque el job terminara verde.
+- Antes de abrir el PR de la demo, corrí `docker build ./api` en mi máquina y vi el error 404 real, para no depender de la corrida en el runner para confirmar que la rotura funcionaba.
+- Vi en vivo el rechazo de `gh pr merge` sobre el PR bloqueado, y el cambio de estado a `BEHIND` y después `CLEAN` en el PR del badge — no asumí que `strict: true` funcionaba, lo confirmé con la API en cada paso.
+- Cada push y cada merge los aprobé yo explícitamente antes de que se ejecutaran.
