@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Table, Form, Button, Row, Col, Alert } from "react-bootstrap";
 import { useHistory } from "react-router-dom";
-import { fetchCsrf } from "../utilities/fetchcsrf";
-import { validarProductoForm } from "./validarProductoForm";
-import { crearProducto } from "../api/productsClient";
+import { fetchCsrf } from "../logic/fetchcsrf";
+import { validarProductoForm } from "../logic/validarProductoForm";
+import { crearProducto } from "../logic/productsClient";
 
 interface Product {
 	id: number;
