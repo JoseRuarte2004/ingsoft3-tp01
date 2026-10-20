@@ -384,3 +384,34 @@ Cómo lo verifiqué, y un incidente real:
 - Verifiqué cada paso crítico desde **afuera** del pipeline (un `grep` sobre el bundle público, la API de Deployments, los *Events* de Render) en vez de confiar en que un check verde alcanzara.
 
 **Nota sobre el tag**: `v6.0.0` se cerró originalmente sobre `72ac1b1` (el commit del merge de PR #30, aprobado en el gate humano). Después de medir el rollback (sección anterior), aprobé un `deploy-prod` más para el commit de cierre del TP6 (PR #33, solo cambios en `decisiones.md` y la release — sin tocar código de la app), y PROD quedó corriendo sobre `7b96c87`. Esto rompe la regla que me había puesto de no aprobar deploys de PRs de documentación fuera del cierre explícito de un TP, y lo cuento tal cual, sin esconderlo. Como el contenido entre los dos commits es solo documentación y el reglamento (§3) permite mover un tag ya puesto siempre que se cuente en `decisiones.md`, moví `v6.0.0` a `7b96c87` (`git tag -f v6.0.0 && git push -f origin v6.0.0`) — el mismo criterio que ya usé para `v5.0.0` — para que el tag coincida con lo que de verdad corre en PROD según *Deployments*. De acá en adelante, si un `deploy-prod` queda esperando aprobación y no es el cierre explícito de un TP, lo reviso con más cuidado antes de aprobarlo.
+
+---
+
+# Decisiones — TP9 (DevSecOps + Observabilidad)
+
+_(en progreso — se completa a medida que avanza el TP)_
+
+## Enlaces de este TP
+
+- `dependabot.yml` (3 ecosistemas: `npm` en `api/`, `npm` en `client/`, `github-actions` en `/`): [PR #35](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/35)
+- PR de Dependabot analizado y mergeado: [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (`actions/checkout` 6→7)
+
+## Dependabot: qué actualicé y por qué me animé a mergearlo
+
+A los pocos segundos de mergear `dependabot.yml` ya tenía 5 PRs abiertos en los tres ecosistemas — mucho más rápido que lo que avisa la guía ("a veces tarda horas"). Elegí [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (`actions/checkout` de 6 a 7, **major** según su propio versionado) para el primer merge, de entre estos cinco:
+
+| PR | Qué actualiza | SemVer | Por qué lo descarté (por ahora) |
+|---|---|---|---|
+| #37 `actions/upload-artifact` 6→7 | Acción del pipeline | Major | No lo analicé a fondo — dejé uno solo del lote de actions para no mezclar dos análisis en la misma entrega |
+| #38 `morgan` 1.9.1→1.12.1 (`api/`) | Logging HTTP | Minor | Toca código de la app; lo dejo para una vuelta con más tiempo de revisión |
+| #39 `cookie-parser` 1.4.5→1.4.7 (`api/`) | Parseo de cookies | Patch | Candidato razonable, pero #36 era más fácil de defender sin ambigüedad |
+| #40 `cookie-session` 1.4.0→2.1.1 (`api/`) | **Sesiones/login** | **Major** | Riesgo real: un salto de mayor a mayor en la librería que maneja la sesión necesita probar el login de punta a punta, no solo un check verde — lo dejo para cuando tenga tiempo de testearlo a mano |
+
+Por qué me animé con el #36 sin dudar:
+- **No toca código de la app** — es una acción del pipeline (`ci.yml`), no una dependencia de `api/` ni `client/`: si algo saliera mal, rompe el CI, no la aplicación en producción.
+- **Leí el changelog de la v7 antes de mergear**: el único cambio que rompe algo es que bloquea el checkout de forks en eventos `pull_request_target`/`workflow_run` (hardening de seguridad, no un bug). Mi `ci.yml` (`.github/workflows/ci.yml:3-7`) solo dispara con `pull_request` y `push` — ningún job mío usa esos dos triggers, así que ese breaking change no me toca.
+- El pipeline ya estaba **verde** sobre la rama del PR antes de mergear (run [39511461705](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39511461705)) — y ese verde es todo mi semestre (TP4/TP5) diciéndome que podía mergear con confianza.
+
+## Problemas encontrados y cómo los resolví (hasta ahora)
+
+- Cada `push`/merge a `main` dispara `deploy-qa` (automático) y `deploy-prod` (esperando aprobación), aunque el cambio sea solo documentación o `dependabot.yml`. Una corrida de ésas (commit `82673f3`, el fix de la nota del tag) ya la rechacé a propósito con un motivo explícito, para no repetir el error que generó la corrección de `v6.0.0` arriba. Las demás quedan esperando sin tocar hasta decidir caso por caso.
