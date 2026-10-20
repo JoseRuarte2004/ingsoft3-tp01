@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Table, Form, Button, Row, Col, Alert } from "react-bootstrap";
 import { useHistory } from "react-router-dom";
 import { fetchCsrf } from "../utilities/fetchcsrf";
+import { validarProductoForm } from "./validarProductoForm";
+import { crearProducto } from "../api/productsClient";
 
 interface Product {
 	id: number;
@@ -64,11 +66,34 @@ const Inventory = (): JSX.Element => {
 	const handleSubmit = (event: React.FormEvent) => {
 		event.preventDefault();
 		const isEditing = editingId !== null;
-		const url = isEditing ? `/products/${editingId}` : "/products";
-		const method = isEditing ? "PUT" : "POST";
 
-		fetch(url, {
-			method,
+		if (!isEditing) {
+			const validacion = validarProductoForm(form);
+			if (!validacion.esValido) {
+				setMessage(validacion.error || "Datos inválidos.");
+				return;
+			}
+
+			crearProducto({ ...form, expiryDate: form.expiryDate || null }, csrfToken)
+				.then((resultado) => {
+					if (!resultado.ok && resultado.sesionExpirada) {
+						history.push("/Authentication");
+						return;
+					}
+					if (!resultado.ok) {
+						setMessage(`No se pudo guardar el producto (status ${resultado.status}).`);
+						return;
+					}
+					resetForm();
+					setMessage("Producto creado.");
+					loadProducts();
+				})
+				.catch((error) => setMessage(String(error)));
+			return;
+		}
+
+		fetch(`/products/${editingId}`, {
+			method: "PUT",
 			headers: { "Content-Type": "application/json", "CSRF-Token": csrfToken },
 			credentials: "include",
 			body: JSON.stringify({ ...form, expiryDate: form.expiryDate || null })
@@ -83,7 +108,7 @@ const Inventory = (): JSX.Element => {
 					return;
 				}
 				resetForm();
-				setMessage(isEditing ? "Producto actualizado." : "Producto creado.");
+				setMessage("Producto actualizado.");
 				loadProducts();
 			})
 			.catch((error) => setMessage(String(error)));

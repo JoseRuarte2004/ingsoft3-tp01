@@ -4,6 +4,7 @@ node_modules/
 obj/
 dist/
 build/
+coverage/
 
 # secretos: NUNCA se versionan
 .env

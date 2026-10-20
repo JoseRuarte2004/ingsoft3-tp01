@@ -17,6 +17,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
 COPY --from=build /app/bin ./bin
 COPY --from=build /app/routes ./routes
+COPY --from=build /app/services ./services
 COPY --from=build /app/utilities ./utilities
 COPY --from=build /app/public ./public
 COPY --from=build /app/app.js ./app.js
