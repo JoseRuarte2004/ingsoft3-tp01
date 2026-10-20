@@ -160,7 +160,7 @@ const Inventory = (): JSX.Element => {
 	return (
 		<div>
 			<Row className="align-items-center">
-				<Col><h2>Inventory</h2></Col>
+				<Col><h2>Mi Inventario</h2></Col>
 				<Col xs="auto"><Button variant="outline-secondary" onClick={handleLogout}>Cerrar sesión</Button></Col>
 			</Row>
 
