@@ -17,7 +17,13 @@ FROM build AS test
 ENTRYPOINT ["npm", "run", "test:ci"]
 
 # ---- Etapa 3: nginx sirve los estáticos ----
+# La plantilla va en templates/, no en conf.d/: la imagen oficial de nginx
+# corre envsubst sobre lo que encuentra en templates/ y lo deja en conf.d/;
+# si estuviera directo en conf.d/, nginx la leería con los ${...} sin
+# reemplazar y no arrancaría.
 FROM nginx:1.27-alpine
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/build /usr/share/nginx/html
+ENV BACKEND_URL=http://backend:5000 \
+    DNS_RESOLVER=127.0.0.11
 EXPOSE 80

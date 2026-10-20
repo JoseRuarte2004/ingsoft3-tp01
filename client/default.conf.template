@@ -14,21 +14,27 @@ server {
     #
     # Variable en vez de nombre directo: si nginx arranca antes que el backend,
     # resolver el nombre "backend" al levantar lo tumbaría (§2.6 de la guía).
-    resolver 127.0.0.11 valid=10s ipv6=off;
-    set $backend_api http://backend:5000;
+    # DNS_RESOLVER y BACKEND_URL llegan por variable de entorno: en compose son
+    # el DNS interno de Docker y el nombre del servicio; en Render, un DNS
+    # público y la URL de la api de ESTE entorno (TP6 §3.3).
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+    set $backend_api ${BACKEND_URL};
 
+    # Sin proxy_set_header Host: el default de nginx (Host: $proxy_host, el host
+    # de $backend_api) es lo que Render necesita para rutear al servicio correcto
+    # en su borde. Forzarlo a $host manda el dominio del FRONT y rompe el ruteo.
     location /csrf/ {
         proxy_pass $backend_api;
-        proxy_set_header Host $host;
+        proxy_ssl_server_name on;
     }
 
     location /users/ {
         proxy_pass $backend_api;
-        proxy_set_header Host $host;
+        proxy_ssl_server_name on;
     }
 
     location /products {
         proxy_pass $backend_api;
-        proxy_set_header Host $host;
+        proxy_ssl_server_name on;
     }
 }
