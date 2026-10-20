@@ -1,0 +1,16 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"              # dependencias del backend
+    directory: "/api"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "npm"              # dependencias del frontend
+    directory: "/client"
+    schedule:
+      interval: "weekly"
+
+  - package-ecosystem: "github-actions"   # las actions del pipeline también son dependencias
+    directory: "/"
+    schedule:
+      interval: "weekly"
