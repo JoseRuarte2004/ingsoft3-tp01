@@ -85,7 +85,8 @@
 	"scripts": {
 		"start": "node scripts/start.js",
 		"build": "node scripts/build.js",
-		"test": "node scripts/test.js"
+		"test": "node scripts/test.js",
+		"test:ci": "node scripts/test.js --watchAll=false --coverage"
 	},
 	"eslintConfig": {
 		"extends": [
@@ -110,9 +111,17 @@
 			"<rootDir>/src"
 		],
 		"collectCoverageFrom": [
-			"src/**/*.{js,jsx,ts,tsx}",
-			"!src/**/*.d.ts"
+			"src/inventory/validarProductoForm.ts",
+			"src/api/productsClient.ts",
+			"src/utilities/fetchcsrf.ts"
 		],
+		"coverageReporters": ["text", "html", "lcov", "json-summary"],
+		"coverageThreshold": {
+			"global": {
+				"lines": 85,
+				"branches": 75
+			}
+		},
 		"setupFiles": [
 			"react-app-polyfill/jsdom"
 		],
@@ -122,7 +131,7 @@
 			"<rootDir>/src/**/*.{spec,test}.{js,jsx,ts,tsx}"
 		],
 		"testEnvironment": "jsdom",
-		"testRunner": "/home/elliot/programming/inventorymanager/ui/node_modules/jest-circus/runner.js",
+		"testRunner": "jest-circus/runner",
 		"transform": {
 			"^.+\\.(js|jsx|mjs|cjs|ts|tsx)$": "<rootDir>/node_modules/babel-jest",
 			"^.+\\.css$": "<rootDir>/config/jest/cssTransform.js",

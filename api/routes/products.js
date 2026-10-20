@@ -2,6 +2,7 @@ var express = require("express");
 var router = express.Router();
 var db = require("../database");
 var matchUserCredentials = require("../utilities/matchUserCredentials");
+var { crearProducto } = require("../services/productService");
 
 /**
  * Get all products owned by the user.
@@ -53,22 +54,18 @@ router.get("/:id", async function(request, response) {
 /**
  * Create a product with the parameters passed, owned by the requesting user.
  */
-router.post("/", function(request, response) {
+router.post("/", async function(request, response) {
 	if (request.isAuthenticated()) {
-		db.product.create({
-			name: request.body.name,
-			quantity: request.body.quantity,
-			expiryDate: request.body.expiryDate,
-			storageLocation: request.body.storageLocation,
-			freezable: request.body.freezable,
-			userId: request.user.id
-		})
-			.then(product => {
-				response.status(200).send(JSON.stringify(product));
-			})
-			.catch(error => {
-				response.status(500).send(JSON.stringify(error));
-			});
+		try {
+			const resultado = await crearProducto(request.body, request.user.id, db);
+			if (!resultado.ok) {
+				response.status(resultado.status).send(resultado.error);
+				return;
+			}
+			response.status(200).send(JSON.stringify(resultado.product));
+		} catch (error) {
+			response.status(500).send(JSON.stringify(error));
+		}
 	} else {
 		response.status(403).send("Not authenticated, access is blocked.");
 	}
