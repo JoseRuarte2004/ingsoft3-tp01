@@ -58,7 +58,7 @@ npm start               # http://localhost:5000
 ```bash
 cd client
 npm install
-npm start               # http://localhost:3000, proxea a localhost:5001 (ver "proxy" en client/package.json)
+npm start               # http://localhost:3000, proxea a localhost:5000 (ver "proxy" en client/package.json)
 ```
 
 ### Tests
