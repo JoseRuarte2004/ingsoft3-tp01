@@ -14,10 +14,15 @@ const limiter = require("express-rate-limit");
 
 const csrfToken = require("./routes/csrf");
 const db = require("./database");
+const healthRouter = require("./routes/health");
 const productsRouter = require("./routes/products");
 const usersRouter = require("./routes/users");
 
 const app = express();
+
+// Detrás del proxy de Render (y de cualquier PaaS): sin esto, express-rate-limit
+// ve la IP del proxy para todos los usuarios y los agota entre todos.
+app.set("trust proxy", 1);
 
 app.use(helmet());
 app.use(hpp());
@@ -60,6 +65,7 @@ passport.deserializeUser(function(userIds, done) {
 		.then(user => done(null, user));
 });
 	
+app.use("/health", healthRouter);
 app.use("/csrf", csrfToken);
 app.use("/users", usersRouter);
 app.use("/products", productsRouter);
