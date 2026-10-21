@@ -467,3 +467,12 @@ Usé Claude Code para instalar los dos SDKs, escribir `instrument.js`, cablear e
 - Antes de aceptar el fix del problema 2, le pedí que explicara por qué pasaba (no solo que "funcionó al agregar esto") — la explicación de `targets`/`browserslist`/el parser viejo de webpack 4 es la que está arriba, y la entendí antes de aprobarla.
 - Confirmé yo mismo, leyendo la salida, que el DSN del front terminó de verdad en el bundle servido por la imagen final (`curl` sobre el JS compilado) y que el backend arranca y responde `/health` tanto con `SENTRY_DSN` cargado como sin él.
 - Los dos DSN los generé yo en mi cuenta de Sentry; se los pasé por el chat porque ninguno de los dos es un secreto real (ver más arriba).
+
+## Lo que vi en Sentry, con datos reales
+
+Después de aprobar el `deploy-prod` con Sentry activo, usé la app en PROD (registro, login, dos altas de producto, cinco listados) y llamé dos veces a un endpoint temporal que falla a propósito (`GET /falla`, agregado solo para esto — [PR #53](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/53), sacado después en [PR #55](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/55)).
+
+- **El error**: aparece en *Issues* como `INGSOFT3-API-1` ("Falla de prueba del TP9", `Unhandled`, bajo `GET /falla`).
+- **La más usada**: `GET /products`, con 5 pedidos (los únicos 5 que mandé a esa ruta — se nota comparando *Time Spent* (817.56ms) contra el *P50* (155.53ms): 817.56 ÷ 155.53 ≈ 5).
+- **La más lenta**: `POST /users/register`, P95 **2.65s** — más que `GET /health/db` (2.22s) y bastante más que `POST /users/login` (P50 824ms, misma ruta de auth, también usa `bcrypt`). Sospecho que no es (solo) el hash: `health/db` no hashea nada y midió casi lo mismo en su primer pedido — es la letra chica del free tier (cold start de Render/Neon, ya documentada en el TP6) sumándose al costo real de `bcrypt`. Con un solo pedido medido no puedo separar cuánto es cada cosa — lo dejé como [issue #54](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/54), con el plan concreto para confirmarlo (mandar varios registros seguidos y comparar el primero contra el resto).
+- **Tarjeta del tablero**: [GitHub Project público "YourInventoryManager — Tablero (TP3/TP9)"](https://github.com/users/JoseRuarte2004/projects/1), con el issue #54 agregado como tarjeta.
