@@ -389,12 +389,15 @@ Cómo lo verifiqué, y un incidente real:
 
 # Decisiones — TP9 (DevSecOps + Observabilidad)
 
-_(en progreso — se completa a medida que avanza el TP)_
-
 ## Enlaces de este TP
 
 - `dependabot.yml` (3 ecosistemas: `npm` en `api/`, `npm` en `client/`, `github-actions` en `/`): [PR #35](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/35)
 - PR de Dependabot analizado y mergeado: [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (`actions/checkout` 6→7)
+- Sentry en backend y frontend: [PR #52](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/52)
+- Endpoint temporal `/falla` (práctica §3.5): [PR #53](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/53) → sacado en [PR #55](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/55)
+- Corrección del tag `v6.0.0` (hallazgo del arranque de este TP): [PR #34](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/34)
+- Issue + tarjeta del tablero (dato real de Sentry): [issue #54](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/54), en el [Project público](https://github.com/users/JoseRuarte2004/projects/1)
+- Monitor de UptimeRobot: `https://ingsoft3-api-prod-62e4.onrender.com/health`, intervalo 5 min, pausado tras el ciclo DOWN/UP (ver abajo)
 
 ## Dependabot: qué PR mergeamos, y por qué
 
@@ -476,3 +479,36 @@ Después de aprobar el `deploy-prod` con Sentry activo, usé la app en PROD (reg
 - **La más usada**: `GET /products`, con 5 pedidos (los únicos 5 que mandé a esa ruta — se nota comparando *Time Spent* (817.56ms) contra el *P50* (155.53ms): 817.56 ÷ 155.53 ≈ 5).
 - **La más lenta**: `POST /users/register`, P95 **2.65s** — más que `GET /health/db` (2.22s) y bastante más que `POST /users/login` (P50 824ms, misma ruta de auth, también usa `bcrypt`). Sospecho que no es (solo) el hash: `health/db` no hashea nada y midió casi lo mismo en su primer pedido — es la letra chica del free tier (cold start de Render/Neon, ya documentada en el TP6) sumándose al costo real de `bcrypt`. Con un solo pedido medido no puedo separar cuánto es cada cosa — lo dejé como [issue #54](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/54), con el plan concreto para confirmarlo (mandar varios registros seguidos y comparar el primero contra el resto).
 - **Tarjeta del tablero**: [GitHub Project público "YourInventoryManager — Tablero (TP3/TP9)"](https://github.com/users/JoseRuarte2004/projects/1), con el issue #54 agregado como tarjeta.
+
+## Monitor externo (UptimeRobot): la caída provocada, medida de verdad
+
+Monitor HTTP(s) sobre `https://ingsoft3-api-prod-62e4.onrender.com/health`, intervalo 5 minutos (el mínimo del plan free). Antes de crearlo comprobé que el endpoint contesta a `HEAD` (`curl -I`, `200`) — el problema que la guía avisa que le pasó a la app de la cátedra no me tocó.
+
+**La caída, con mi propio reloj como testigo** (no solo el historial del panel):
+- **13:48:12 UTC**: confirmé por `curl` externo que `/health` ya devolvía `503` — el servicio estaba suspendido de verdad.
+- El mail de **DOWN** llegó dentro de la ventana de 5 minutos que promete el plan gratuito (lo confirmé yo mismo revisando la bandeja; no anoté el minuto exacto del mail, solo que entró en esa ventana).
+- **13:50:33 UTC**: después de reanudar el servicio desde Render y abrir `/health` una vez a mano (para despertarlo), un `curl` externo ya devolvía `200` — **2 minutos 21 segundos** después del `503` confirmado. Esa misma respuesta tardó 24.9s en completarse (el cold start del primer pedido después de reanudar).
+- El mail de **UP** de UptimeRobot llegó después de eso (su propio chequeo corre cada 5 minutos, independiente de que el servicio ya estuviera vivo).
+
+**Por qué separo las dos mediciones**: "cuánto tardó en volver a estar vivo" (2m21s, medido por mí) y "cuánto tardó el monitor en decírmelo" (acotado por su propio intervalo de chequeo, no instantáneo) son datos distintos — el segundo depende del intervalo que paga el plan, no de qué tan rápido reaccioné yo. Monitor **pausado** apenas confirmé el UP, para no consumir las 750 horas compartidas de Render (TP6/TP8).
+
+## Declaración de uso de IA — TP9 (cierre: monitor y tablero)
+
+La cuenta de UptimeRobot, el monitor, el Suspend/Resume de Render y la lectura de los mails de DOWN/UP los hice **yo**, desde los paneles web correspondientes — es la parte de criterio humano que no tenía sentido delegar (igual que el gate humano del TP6). Le pedí a Claude Code que confirmara por `curl` externo, en paralelo, cuándo el servicio realmente dejó de responder y cuándo volvió — así el tiempo que quedó anotado arriba no depende solo de mi lectura del reloj del mail, sino de una medición externa verificable.
+
+El Project de GitHub (`gh project create`) y el issue #54 con el dato de Sentry los armó Claude Code por mí, después de que yo autorizara el scope (`gh auth refresh -s project`) — el contenido del issue (qué se midió, por qué sospecho que es cold start y no solo `bcrypt`, y el plan para confirmarlo) lo revisé antes de que quedara público.
+
+## CodeQL: activado, y los 3 hallazgos del primer análisis
+
+*Settings → Advanced Security → Code Security → CodeQL analysis → Default* (por API, `PATCH code-scanning/default-setup`, lenguajes `javascript-typescript` + `actions` — el análisis de mis propios workflows). Primer análisis: [run 39612510550](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39612510550), verde, visible en *Security → Code scanning*.
+
+Encontró 3 alertas, de 2 categorías — analicé las dos:
+
+1. **`actions/missing-workflow-permissions`** (×2, en `deploy-qa` y `deploy-prod` de `ci.yml`) — exactamente el hallazgo que la guía avisa que "vas a ver casi seguro". Ninguno de los dos jobs declaraba `permissions:` propio, así que corrían con el default del repo (`read`, desde el Paso 0). No era explotable de verdad hoy — pero es el mismo argumento del TP4 (`enforce_admins`, mínimo privilegio): no quiero que el día de mañana otro job nuevo, sin querer, herede más permiso del que necesita solo porque el repo cambió su default. **Fix real**: agregué `permissions: { contents: read }` explícito a los dos (ninguno hace ni falta `checkout`, pero es el piso sensato — igual que recomienda la guía).
+2. **`js/stack-trace-exposure`** (`api/routes/products.js:67`, categoría OWASP: exposición de información / CWE-209) — `response.status(500).send(JSON.stringify(error))` manda el objeto `Error` completo al cliente. Con Sequelize, ese objeto puede traer el mensaje de SQL, nombres de columnas, y a veces fragmentos de la query — información interna que un atacante no necesita ver. **Sí es explotable de verdad**: lo reproduje a mano (un `PUT` con un tipo de dato inválido) y, hasta el fix, la respuesta mostraba el error crudo. CodeQL marcó solo esa línea, pero el mismo patrón se repetía **6 veces** (5 en `products.js`, 1 en `users.js`) — **fix real en las 6**: mensaje genérico al cliente (`{"error": "Internal server error"}`) + `Sentry.captureException(error)` antes de responder, así el error sigue viéndose en Sentry (antes, como estos routes lo atajaban con su propio `try/catch`, ni siquiera llegaba al `setupExpressErrorHandler` de `app.js` — quedaba invisible para Sentry también).
+
+No hice el ejercicio de "provocar un hallazgo didáctico": no hizo falta, los 3 ya eran reales.
+
+### Declaración de uso de IA — TP9 (CodeQL)
+
+Activé CodeQL yo, pidiéndole a Claude Code que lo hiciera por API (mismo criterio que Dependabot: configuración, no juicio). El análisis de **por qué** cada hallazgo importa y si era explotable lo hizo Claude Code primero, mostrándome el código real (`sed`/`grep` sobre el archivo, no una descripción genérica) y reproduciendo el camino de error con un `curl` real antes de tocar nada — recién ahí decidí que los dos valían la pena arreglar de verdad, no solo documentar. Verifiqué el fix corriendo los 26 tests del backend (sin cambios, porque `routes/*.js` queda afuera de la cuenta de cobertura — ver TP5) y un smoke test end-to-end en Docker (registro, login, alta y listado de producto, y el camino de error mostrando el mensaje genérico en vez del stack trace) antes de aprobar el PR.
