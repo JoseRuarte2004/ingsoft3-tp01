@@ -205,7 +205,10 @@ const Inventory = (): JSX.Element => {
 					</Col>
 					<Col xs="auto" className="d-flex align-items-end">
 						<Form.Group>
-							<Button variant="primary" type="submit">{editingId !== null ? "Guardar" : "Agregar"}</Button>
+							{/* Deshabilitado hasta tener el CSRF token — mismo motivo que en
+							    Authentication.tsx: un submit antes de que fetchCsrf() resuelva
+							    manda el header vacío. */}
+							<Button variant="primary" type="submit" disabled={!csrfToken}>{editingId !== null ? "Guardar" : "Agregar"}</Button>
 							{editingId !== null &&
 								<Button variant="link" onClick={resetForm}>Cancelar</Button>
 							}

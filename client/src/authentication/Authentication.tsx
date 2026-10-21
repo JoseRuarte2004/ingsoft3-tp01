@@ -79,8 +79,11 @@ const Authentication = () => {
 				<Form.Label>Password</Form.Label>
 				<Form.Control required type="password" placeholder="Password" />
 			</Form.Group>
-			{/* Submit button */}
-			<Button variant="primary" type="submit">
+			{/* Submit button: deshabilitado hasta tener el CSRF token — si no,
+			    un submit rápido (un test, o alguien que ya conoce el form)
+			    puede salir ANTES de que fetchCsrf() termine, mandando un
+			    CSRF-Token vacío y un "invalid csrf token" confuso. */}
+			<Button variant="primary" type="submit" disabled={!csrfToken}>
 				{authMode}
 			</Button>
 			<p onClick={invertAuthMode}>{(authMode === "Register") ? "¿Ya tenés cuenta? Iniciá sesión acá." : "¿Necesitás una cuenta? Registrate acá."}</p>
