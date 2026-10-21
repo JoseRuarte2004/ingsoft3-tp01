@@ -7,7 +7,12 @@ WORKDIR /app
 ENV NODE_OPTIONS=--openssl-legacy-provider
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# --legacy-peer-deps: @sentry/react pide react-router 6-8 como peer OPCIONAL
+# (solo lo usa si integrás su tracing con el router); esta app sigue en
+# react-router-dom 5. No se usa esa integración, así que el conflicto es
+# inofensivo — pero sin el flag, npm ci (a diferencia de npm install) lo
+# trata como error y no instala nada.
+RUN npm ci --legacy-peer-deps
 
 COPY . .
 RUN npm run build

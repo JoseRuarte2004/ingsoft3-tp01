@@ -1,4 +1,5 @@
 require("dotenv").config();
+const Sentry = require("@sentry/node");
 const express = require("express");
 const cookieParser = require("cookie-parser");
 const logger = require("morgan");
@@ -74,5 +75,10 @@ if(process.env.NODE_ENV === "production") {
 	app.use(express.static(__dirname.replace("/api","/client/build")));
 	app.get("*", (request, response) => { response.sendFile(__dirname.replace("api","client/build/index.html")); });
 }
+
+// Después de todas las rutas, antes de cualquier otro manejador de errores
+// (no hay ninguno propio todavía): así Sentry ve los errores que las rutas
+// de arriba no atraparon.
+Sentry.setupExpressErrorHandler(app);
 
 module.exports = app;

@@ -431,6 +431,17 @@ module.exports = function (webpackEnv) {
 								babelrc: false,
 								configFile: false,
 								compact: false,
+								// El preset de abajo usa @babel/preset-env sin "targets" propio:
+								// sin este override, toma el browserslist del proyecto
+								// (navegadores modernos) y por eso NO transforma sintaxis nueva
+								// (`?.`, `??`, class fields) — la da por soportada. El problema
+								// es que este webpack (v4, heredado) trae un parser interno que
+								// no entiende esa sintaxis en el JS que los loaders le
+								// devuelven, aunque el navegador final sí la soporte. Forzamos
+								// un target viejo para ESTA regla (solo node_modules, no mi
+								// código) para que cualquier paquete publicado con sintaxis
+								// moderna (como @sentry/*) se transforme y se pueda empaquetar.
+								targets: 'ie 11',
 								presets: [
 									[
 										require.resolve('babel-preset-react-app/dependencies'),

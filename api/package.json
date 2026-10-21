@@ -37,6 +37,7 @@
 		]
 	},
 	"dependencies": {
+		"@sentry/node": "^11.8.0",
 		"@testing-library/jest-dom": "^5.11.4",
 		"@testing-library/react": "^11.1.0",
 		"@testing-library/user-event": "^12.1.10",
@@ -74,6 +75,7 @@
 			"!app.js",
 			"!database.js",
 			"!routes/**",
+			"!instrument.js",
 			"!**/*.test.js",
 			"!node_modules/**",
 			"!coverage/**",
