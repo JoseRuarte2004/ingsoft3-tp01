@@ -154,6 +154,8 @@ jobs:
     needs: [build-api, build-client]
     if: github.ref == 'refs/heads/main'
     environment: qa
+    permissions:
+      contents: read
     steps:
       # El &ref= no es opcional: un hook pelado despliega la PUNTA de la rama,
       # no el commit que este pipeline acaba de verificar. Con dos merges
@@ -187,6 +189,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: deploy-qa
     environment: production
+    permissions:
+      contents: read
     concurrency:
       group: deploy-prod
       cancel-in-progress: false

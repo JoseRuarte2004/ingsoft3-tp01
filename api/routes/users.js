@@ -1,4 +1,5 @@
 var express = require("express");
+var Sentry = require("@sentry/node");
 var cors = require("cors");
 var passport = require("passport");
 var LocalStrategy = require("passport-local").Strategy;
@@ -42,7 +43,7 @@ router.post("/register", async function (request, response) {
 		const resultado = await registrarUsuario(request.body, db);
 		response.send(resultado.mensaje);
 	} catch (error) {
-		console.log(error);
+		Sentry.captureException(error);
 		response.status(500).send("Error creating user.");
 	}
 });
@@ -77,7 +78,8 @@ router.get("/", cors(), function(request, response) {
 				response.status(200).send(JSON.stringify(users));
 			})
 			.catch(error => {
-				response.status(500).send(JSON.stringify(error));
+				Sentry.captureException(error);
+				response.status(500).send(JSON.stringify({ error: "Internal server error" }));
 			});
 	} else {
 		response.status(403).send("Not authenticated, access is blocked.");

@@ -1,4 +1,5 @@
 var express = require("express");
+var Sentry = require("@sentry/node");
 var router = express.Router();
 var db = require("../database");
 var matchUserCredentials = require("../utilities/matchUserCredentials");
@@ -18,7 +19,8 @@ router.get("/", async function(request, response) {
 				response.status(200).send(JSON.stringify(products));
 			})
 			.catch(error => {
-				response.status(500).send(JSON.stringify(error));
+				Sentry.captureException(error);
+				response.status(500).send(JSON.stringify({ error: "Internal server error" }));
 			});
 	} else {
 		response.status(403).send("Not authenticated, access is blocked.");
@@ -44,7 +46,8 @@ router.get("/:id", async function(request, response) {
 				response.status(200).send(JSON.stringify(product));
 			})
 			.catch(error => {
-				response.status(500).send(JSON.stringify(error));
+				Sentry.captureException(error);
+				response.status(500).send(JSON.stringify({ error: "Internal server error" }));
 			});
 	} else {
 		response.status(403).send("Not authenticated, access is blocked.");
@@ -64,7 +67,8 @@ router.post("/", async function(request, response) {
 			}
 			response.status(200).send(JSON.stringify(resultado.product));
 		} catch (error) {
-			response.status(500).send(JSON.stringify(error));
+			Sentry.captureException(error);
+			response.status(500).send(JSON.stringify({ error: "Internal server error" }));
 		}
 	} else {
 		response.status(403).send("Not authenticated, access is blocked.");
@@ -96,7 +100,8 @@ router.put("/:id", async function(request, response) {
 				response.status(200).send();
 			})
 			.catch(error => {
-				response.status(500).send(JSON.stringify(error));
+				Sentry.captureException(error);
+				response.status(500).send(JSON.stringify({ error: "Internal server error" }));
 			});
 	} else {
 		response.status(403).send("Not authenticated, access is blocked.");
@@ -118,7 +123,8 @@ router.delete("/:id", async function(request, response) {
 				response.status(200).send();
 			})
 			.catch(error => {
-				response.status(500).send(JSON.stringify(error));
+				Sentry.captureException(error);
+				response.status(500).send(JSON.stringify({ error: "Internal server error" }));
 			});
 	} else {
 		response.status(403).send("Not authenticated, access is blocked.");
