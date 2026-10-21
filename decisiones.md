@@ -2,7 +2,7 @@
 
 (Sección puesta arriba de todo a propósito — la consigna pide que se encuentre rápido en la defensa. El detalle completo, con el resto de las decisiones del TP7, está al final del archivo, después de la sección de TP9.)
 
-- **Los dos paquetes públicos**, con la etiqueta del commit que corre en PROD: `ghcr.io/joseruarte2004/ingsoft3-tp01-backend:sha-6005679e2d08daadb6e099536cae4713cbb295c0` y `ghcr.io/joseruarte2004/ingsoft3-tp01-frontend:sha-6005679e2d08daadb6e099536cae4713cbb295c0` (confirmados públicos con `docker pull` sin sesión).
+- **Los dos paquetes públicos**, con la etiqueta del commit que corre en PROD: `ghcr.io/joseruarte2004/ingsoft3-tp01-backend:sha-85555b6cb025620b648f575fed813c72ec943658` y `ghcr.io/joseruarte2004/ingsoft3-tp01-frontend:sha-85555b6cb025620b648f575fed813c72ec943658` (confirmados públicos con `docker pull` sin sesión).
 - **La corrida con integración VERDE y e2e ROJA** (la evidencia central): commit que rompió la app — [`0ba335c`](https://github.com/JoseRuarte2004/ingsoft3-tp01/commit/0ba335c) (cambia el texto del botón "Agregar" a "Añadir", a propósito) — [run 39648398314](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39648398314): `integracion` ✅, `e2e` ❌, `deploy-prod` **skipped** (ni pidió aprobación). Los dos reportes, artefactos de esa misma corrida: `playwright-report-integracion` (verde) y `playwright-report-e2e` (rojo, con trace + screenshot del fallo).
 - **La corrida completa en verde posterior, hasta PROD**: fix del botón en [`e8d5f19`](https://github.com/JoseRuarte2004/ingsoft3-tp01/commit/e8d5f19) → [run 39650034718](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39650034718): `build` → `deploy-qa` → `integracion` ✅ → `e2e` ✅ → aprobación → `deploy-prod` ✅.
 - **URLs vivas** (hasta la defensa): QA — [front](https://ingsoft3-front-qa-g1m1.onrender.com) · [api](https://ingsoft3-api-qa-q9kf.onrender.com). PROD — [front](https://ingsoft3-front-prod-etlo.onrender.com) · [api](https://ingsoft3-api-prod-62e4.onrender.com).
@@ -642,6 +642,8 @@ Usé Claude Code para todo lo nuevo del pipeline (`imgURL` en vez de `ref=`, los
 | 2. Suite de integración (≥3, sin navegador, contra la api de QA real) | ✅ | `client/e2e/api.spec.js`, job `integracion` con `needs: deploy-qa` |
 | 3. Suite e2e (≥3, contra QA desplegado, sin mocks) | ✅ | `client/e2e/inventario.spec.js`, job `e2e` con `needs: integracion` |
 | 4. Las pruebas como gate (needs encadenados, sin desarmar nada, e2e roja frenando una promoción real) | ✅ | [run 39648398314](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39648398314): integración ✅, e2e ❌, `deploy-prod` *skipped* |
-| 5. Release `v7.0.0` sobre el commit de PROD | ✅ | Tag sobre `6005679` (confirmado por *Deployments*) |
+| 5. Release `v7.0.0` sobre el commit de PROD | ✅ | Tag sobre `85555b6` (confirmado por *Deployments*) |
 
-**Commit de cierre**: `6005679` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto, con la cadena completa (`integracion`→`e2e`→aprobación→`deploy-prod`) en verde.
+**Commit de cierre**: `85555b6` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto, con la cadena completa (`integracion`→`e2e`→aprobación→`deploy-prod`) en verde.
+
+**Nota sobre el tag**: mismo patrón que TP6/TP9 — el commit `6005679` (donde la cadena real terminó en verde por primera vez) necesitaba todavía la sección de `decisiones.md`, y ese PR de documentación movió `main` (y con él, PROD) a `85555b6`. `v7.0.0` quedó sobre ese commit final.
