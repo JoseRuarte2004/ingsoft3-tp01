@@ -532,6 +532,8 @@ Activé CodeQL yo, pidiéndole a Claude Code que lo hiciera por API (mismo crite
 | 3. Push protection verificada activa | ✅ | `security_and_analysis.secret_scanning_push_protection.status: "enabled"` (API) |
 | 4. Monitor externo sobre `/health` de PROD, DOWN+UP en el historial, pausado al terminar | ✅ | Suspend/Resume de Render + mails de DOWN/UP con hora real (tabla arriba); vuelta a vivo medida en 2m21s (curl externo); monitor pausado |
 | 5. Sentry en back y front, ≥1 error, tabla de uso real, tarjeta en el tablero | ✅ | Issue `INGSOFT3-API-1` en Sentry; `GET /products` la más usada, `POST /users/register` P95 2.65s la más lenta; tarjeta = [issue #54](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/54) en el [Project público](https://github.com/users/JoseRuarte2004/projects/1) |
-| 6. Release `v9.0.0` | ✅ | Tag sobre `233f26f` (el commit real que corre en PROD, con el fix de CodeQL y la tabla de cierre incluidos) |
+| 6. Release `v9.0.0` | ✅ | Tag sobre `1bf4086` (el commit real que corre en PROD, con el fix de CodeQL y la tabla de cierre corregida incluidos) |
 
-**Commit de cierre**: `233f26f` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto después de la aprobación.
+**Commit de cierre**: `1bf4086` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto después de la aprobación.
+
+**Nota sobre el tag**: esta misma tabla, en su primera versión, decía `233f26f` — y para cuando ese commit existió de verdad, ya hacía falta una corrección más (el error que `233f26f` describía sobre sí mismo era, en rigor, imposible de contener en el propio commit). Mismo patrón que `v6.0.0` en el TP6: `v9.0.0` terminó en `1bf4086`, el commit que incluye esta corrección — y la corrección en sí misma no amerita mover el tag una vez más ni aprobar otro `deploy-prod`, porque ya no es el cierre del TP, es la nota sobre el cierre.
