@@ -17,3 +17,9 @@ test-results/
 Thumbs.db
 .vscode/
 .idea/
+
+# Terraform (TP8): el estado y los tfvars locales nunca se versionan
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars
