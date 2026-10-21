@@ -166,7 +166,7 @@ const Inventory = (): JSX.Element => {
 
 			{message && <Alert variant="info" onClose={() => setMessage("")} dismissible>{message}</Alert>}
 
-			<Form onSubmit={handleSubmit} className="mb-4">
+			<Form noValidate onSubmit={handleSubmit} className="mb-4">
 				<Row>
 					<Col>
 						<Form.Group controlId="formName">

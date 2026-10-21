@@ -57,7 +57,7 @@ const Authentication = () => {
 		}
 	};
 	return (
-		<Form onSubmit={(event) => handleSubmit(event)}>
+		<Form noValidate onSubmit={(event) => handleSubmit(event)}>
 			{message && <Alert variant="info">{message}</Alert>}
 			{/* Username field */}
 			<Form.Group controlId="formUsername">
