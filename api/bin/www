@@ -1,5 +1,9 @@
 #!/usr/bin/env node
 
+// Antes que cualquier otro require: así Sentry puede instrumentar automáticamente
+// los módulos (http, express) que se importan después de este punto.
+require("../instrument");
+
 /**
  * Module dependencies.
  */

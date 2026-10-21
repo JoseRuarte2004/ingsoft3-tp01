@@ -29,6 +29,7 @@ WORKDIR /app
 
 COPY --from=prod-deps /app/node_modules ./node_modules
 COPY --from=build /app/package.json ./package.json
+COPY --from=build /app/instrument.js ./instrument.js
 COPY --from=build /app/bin ./bin
 COPY --from=build /app/routes ./routes
 COPY --from=build /app/services ./services
