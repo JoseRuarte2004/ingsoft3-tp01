@@ -484,13 +484,23 @@ Después de aprobar el `deploy-prod` con Sentry activo, usé la app en PROD (reg
 
 Monitor HTTP(s) sobre `https://ingsoft3-api-prod-62e4.onrender.com/health`, intervalo 5 minutos (el mínimo del plan free). Antes de crearlo comprobé que el endpoint contesta a `HEAD` (`curl -I`, `200`) — el problema que la guía avisa que le pasó a la app de la cátedra no me tocó.
 
-**La caída, con mi propio reloj como testigo** (no solo el historial del panel):
-- **13:48:12 UTC**: confirmé por `curl` externo que `/health` ya devolvía `503` — el servicio estaba suspendido de verdad.
-- El mail de **DOWN** llegó dentro de la ventana de 5 minutos que promete el plan gratuito (lo confirmé yo mismo revisando la bandeja; no anoté el minuto exacto del mail, solo que entró en esa ventana).
-- **13:50:33 UTC**: después de reanudar el servicio desde Render y abrir `/health` una vez a mano (para despertarlo), un `curl` externo ya devolvía `200` — **2 minutos 21 segundos** después del `503` confirmado. Esa misma respuesta tardó 24.9s en completarse (el cold start del primer pedido después de reanudar).
-- El mail de **UP** de UptimeRobot llegó después de eso (su propio chequeo corre cada 5 minutos, independiente de que el servicio ya estuviera vivo).
+**La caída, con mi propio reloj y los mails reales como testigos** (no solo el historial del panel):
 
-**Por qué separo las dos mediciones**: "cuánto tardó en volver a estar vivo" (2m21s, medido por mí) y "cuánto tardó el monitor en decírmelo" (acotado por su propio intervalo de chequeo, no instantáneo) son datos distintos — el segundo depende del intervalo que paga el plan, no de qué tan rápido reaccioné yo. Monitor **pausado** apenas confirmé el UP, para no consumir las 750 horas compartidas de Render (TP6/TP8).
+| Evento | Hora (ARG, UTC-3) | Fuente |
+|---|---|---|
+| Suspend en Render | 10:48 | yo, desde el panel |
+| `/health` ya devolvía `503` | 10:48:12 | `curl` externo (Claude Code) |
+| Mail de **DOWN** | 10:49 | UptimeRobot |
+| Resume en Render + `/health` abierto a mano | 10:50 | yo |
+| `/health` ya devolvía `200` de nuevo | 10:50:33 | `curl` externo (Claude Code) |
+| Mail de **UP** | 10:54 | UptimeRobot |
+
+Tres tiempos, cada uno mide algo distinto:
+- **Tiempo en avisar la caída (DOWN)**: ~1 minuto desde el `503` confirmado (10:48:12 → 10:49) — más rápido que el intervalo de 5 minutos del plan, porque el chequeo de UptimeRobot cayó justo después de suspender.
+- **Tiempo en volver a estar vivo**: **2 minutos 21 segundos** desde el `503` confirmado hasta que un `curl` externo volvió a dar `200` (10:48:12 → 10:50:33). Esa misma respuesta tardó 24.9s en completarse — el cold start del primer pedido después de reanudar.
+- **Tiempo en avisar que volvió (UP)**: el mail llegó a las 10:54, **3 minutos 27 segundos** después de que el servicio ya estaba vivo de verdad (10:50:33) — el chequeo de UptimeRobot no fue instantáneo, esperó a su propio ciclo de 5 minutos.
+
+**Por qué separo las tres mediciones**: "cuánto tardó en volver a estar vivo" depende de mí (y de Render); "cuánto tardó el monitor en avisarme" depende del intervalo que paga el plan, no de qué tan rápido reaccioné — y ese intervalo jugó a mi favor para el DOWN (cayó justo a tiempo) y en mi contra para el UP (tuvo que esperar el ciclo completo). Monitor **pausado** apenas confirmé el UP, para no consumir las 750 horas compartidas de Render (TP6/TP8).
 
 ## Declaración de uso de IA — TP9 (cierre: monitor y tablero)
 
@@ -520,8 +530,8 @@ Activé CodeQL yo, pidiéndole a Claude Code que lo hiciera por API (mismo crite
 | 1. Dependabot activo (3 ecosistemas) + alertas/security updates prendidas + 1 PR mergeado | ✅ | [PR #35](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/35) (`dependabot.yml`), [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (mergeado y analizado) |
 | 2. CodeQL activo, primer análisis terminado, visible en Security → Code scanning | ✅ | [run 39612510550](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39612510550), 3 alertas encontradas y corregidas ([PR #56](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/56)) |
 | 3. Push protection verificada activa | ✅ | `security_and_analysis.secret_scanning_push_protection.status: "enabled"` (API) |
-| 4. Monitor externo sobre `/health` de PROD, DOWN+UP en el historial, pausado al terminar | ✅ | Suspend/Resume de Render + mails de DOWN/UP confirmados; caída real medida en 2m21s (curl externo); monitor pausado |
+| 4. Monitor externo sobre `/health` de PROD, DOWN+UP en el historial, pausado al terminar | ✅ | Suspend/Resume de Render + mails de DOWN/UP con hora real (tabla arriba); vuelta a vivo medida en 2m21s (curl externo); monitor pausado |
 | 5. Sentry en back y front, ≥1 error, tabla de uso real, tarjeta en el tablero | ✅ | Issue `INGSOFT3-API-1` en Sentry; `GET /products` la más usada, `POST /users/register` P95 2.65s la más lenta; tarjeta = [issue #54](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/54) en el [Project público](https://github.com/users/JoseRuarte2004/projects/1) |
-| 6. Release `v9.0.0` | ✅ | Tag sobre `f183222` (el commit real que corre en PROD, con el fix de CodeQL incluido) |
+| 6. Release `v9.0.0` | ✅ | Tag sobre `233f26f` (el commit real que corre en PROD, con el fix de CodeQL y la tabla de cierre incluidos) |
 
-**Commit de cierre**: `f183222` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto después de la aprobación.
+**Commit de cierre**: `233f26f` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto después de la aprobación.
