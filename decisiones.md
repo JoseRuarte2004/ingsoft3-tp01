@@ -2,7 +2,7 @@
 
 (Sección puesta arriba de todo a propósito — la consigna pide que se encuentre rápido en la defensa. El detalle completo, con el resto de las decisiones del TP7, está al final del archivo, después de la sección de TP9.)
 
-- **Los dos paquetes públicos**, con la etiqueta del commit que corre en PROD: `ghcr.io/joseruarte2004/ingsoft3-tp01-backend:sha-85555b6cb025620b648f575fed813c72ec943658` y `ghcr.io/joseruarte2004/ingsoft3-tp01-frontend:sha-85555b6cb025620b648f575fed813c72ec943658` (confirmados públicos con `docker pull` sin sesión).
+- **Los dos paquetes públicos**, con la etiqueta del commit que corre en PROD: `ghcr.io/joseruarte2004/ingsoft3-tp01-backend:sha-8a0e9b0bacaf45e8de252f7eab8394c446c56cac` y `ghcr.io/joseruarte2004/ingsoft3-tp01-frontend:sha-8a0e9b0bacaf45e8de252f7eab8394c446c56cac` (confirmados públicos con `docker pull` sin sesión). `8a0e9b0` es el commit real del tag `v7.0.0` (`git rev-list -n1 v7.0.0`) — un paso más allá de `85555b6`, porque el PR #67 que corrigió una referencia *dentro* de este mismo archivo generó, a su vez, un commit nuevo.
 - **La corrida con integración VERDE y e2e ROJA** (la evidencia central): commit que rompió la app — [`0ba335c`](https://github.com/JoseRuarte2004/ingsoft3-tp01/commit/0ba335c) (cambia el texto del botón "Agregar" a "Añadir", a propósito) — [run 39648398314](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39648398314): `integracion` ✅, `e2e` ❌, `deploy-prod` **skipped** (ni pidió aprobación). Los dos reportes, artefactos de esa misma corrida: `playwright-report-integracion` (verde) y `playwright-report-e2e` (rojo, con trace + screenshot del fallo).
 - **La corrida completa en verde posterior, hasta PROD**: fix del botón en [`e8d5f19`](https://github.com/JoseRuarte2004/ingsoft3-tp01/commit/e8d5f19) → [run 39650034718](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39650034718): `build` → `deploy-qa` → `integracion` ✅ → `e2e` ✅ → aprobación → `deploy-prod` ✅.
 - **URLs vivas** (hasta la defensa): QA — [front](https://ingsoft3-front-qa-g1m1.onrender.com) · [api](https://ingsoft3-api-qa-q9kf.onrender.com). PROD — [front](https://ingsoft3-front-prod-etlo.onrender.com) · [api](https://ingsoft3-api-prod-62e4.onrender.com).
@@ -642,8 +642,69 @@ Usé Claude Code para todo lo nuevo del pipeline (`imgURL` en vez de `ref=`, los
 | 2. Suite de integración (≥3, sin navegador, contra la api de QA real) | ✅ | `client/e2e/api.spec.js`, job `integracion` con `needs: deploy-qa` |
 | 3. Suite e2e (≥3, contra QA desplegado, sin mocks) | ✅ | `client/e2e/inventario.spec.js`, job `e2e` con `needs: integracion` |
 | 4. Las pruebas como gate (needs encadenados, sin desarmar nada, e2e roja frenando una promoción real) | ✅ | [run 39648398314](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39648398314): integración ✅, e2e ❌, `deploy-prod` *skipped* |
-| 5. Release `v7.0.0` sobre el commit de PROD | ✅ | Tag sobre `85555b6` (confirmado por *Deployments*) |
+| 5. Release `v7.0.0` sobre el commit de PROD | ✅ | Tag sobre `8a0e9b0` (confirmado por *Deployments*) |
 
-**Commit de cierre**: `85555b6` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto, con la cadena completa (`integracion`→`e2e`→aprobación→`deploy-prod`) en verde.
+**Commit de cierre**: `8a0e9b0` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto, con la cadena completa (`integracion`→`e2e`→aprobación→`deploy-prod`) en verde.
 
-**Nota sobre el tag**: mismo patrón que TP6/TP9 — el commit `6005679` (donde la cadena real terminó en verde por primera vez) necesitaba todavía la sección de `decisiones.md`, y ese PR de documentación movió `main` (y con él, PROD) a `85555b6`. `v7.0.0` quedó sobre ese commit final.
+**Nota sobre el tag**: mismo patrón que TP6/TP9, con una vuelta más — el commit `6005679` (donde la cadena real terminó en verde por primera vez) necesitaba todavía la sección de `decisiones.md`; ese PR de documentación (#66) movió `main` (y con él, PROD) a `85555b6`. Pero ese PR tenía, a su vez, una referencia equivocada **dentro del propio `decisiones.md`** (decía `6005679` donde correspondía `85555b6`) — corregirla fue un PR más (#67), que generó un commit más (`8a0e9b0`) y volvió a mover `main`/PROD un paso. `v7.0.0` quedó, finalmente, sobre `8a0e9b0` — no sobre `85555b6` como decía una versión anterior de esta misma nota.
+
+---
+
+# Decisiones — TP8 (IaC)
+
+## Riel elegido: Plan C — Terraform + provider Docker, 100% local
+
+Elegí el Plan C (§3.7 de la guía) en vez del riel canónico (Neon + Render) por tres razones concretas, no por comodidad:
+
+1. **No pide ninguna clave nueva.** El riel canónico necesita `NEON_API_KEY`, `RENDER_API_KEY` y `RENDER_OWNER_ID` — tres credenciales más viviendo en mi cuenta y, si hago la parte opcional del pipeline, en los secrets de un repo público. Plan C solo habla con mi Docker local.
+2. **No consume las 750 horas compartidas de Render** (TP6 §2.6/TP8 §2.6). Esas horas ya están ajustadas para que entren los 4 servicios de QA/PROD hasta la defensa; agregar un `preprod` más en Render, aunque sea efímero, es exactamente el tipo de margen que no quiero arriesgar a días del corte.
+3. **El provider de Neon (`kislerdm/neon`) no es oficial**: lo mantiene una persona, su repo está archivado, y el oficial de Neon todavía no existe en el registro (TP8 §3.2). Prefiero no depender de eso para la defensa en vivo.
+
+Como ventaja adicional (no el motivo principal): Plan C no tiene el defecto del plan gratuito de Render que impide modificar un servicio — pude probar un `apply` que cambia de verdad un contenedor existente, algo que el riel canónico no permite ver.
+
+**Versiones fijadas:**
+
+| Herramienta | Versión fijada | Versión instalada |
+|---|---|---|
+| Terraform | `required_version >= 1.5` | `1.17.0` (instalada con `brew install hashicorp/tap/terraform`, porque `homebrew-core` sacó la fórmula tras el cambio de licencia de 2023) |
+| Provider `kreuzwerker/docker` | `~> 4.0` | `4.6.0` |
+
+`infra/.terraform.lock.hcl` fija los hashes exactos; se subió al repo. El estado vive en `$HOME/tfstate/ingsoft3-preprod.tfstate`, fuera del repo y fuera de `infra/`, y nunca se commiteó.
+
+## Qué declara `preprod`
+
+Red (`ingsoft3-preprod`) + volumen (`ingsoft3-preprod-db-data`) + tres contenedores (`db`, `api`, `front`), con `api`/`front` corriendo las imágenes `sha-8a0e9b0bacaf45e8de252f7eab8394c446c56cac` publicadas por el pipeline del TP7 (la misma release `v7.0.0`) — nunca reconstruidas. La cadena de conexión de la api (`DB_HOST=${docker_container.db.name}`) y la `BACKEND_URL` del front (`http://${docker_container.api.name}:5000`) se **derivan** del nombre real del contenedor, no se copian a mano. Las tres credenciales (`db_password`, `session_secret`, `cookie_parser_secret`) son variables `sensitive`, sin default, declaradas en `infra/local.tfvars` (ignorado por git desde antes del primer `apply`) — ninguna vive en el HCL.
+
+Puertos `5090`/`3090`, distintos de los `5050`/`3000` del `docker-compose.yml` de desarrollo, para que `preprod` conviva sin pisarlo.
+
+## Problemas encontrados y cómo los resolví
+
+- **Las imágenes del TP7 son solo `linux/amd64`**: el pipeline las construye en `ubuntu-latest` sin declarar `platforms:` en `docker/build-push-action`, así que buildx usa la plataforma nativa del runner. Mi Mac es Apple Silicon (`arm64`): el primer `apply` murió con `no matching manifest for linux/arm64/v8`. Lo resolví agregando `platform = "linux/amd64"` en los dos `docker_image` (`api`, `front`) — Docker Desktop las corre por emulación, un poco más lento pero sin cambiar nada de la imagen real.
+- **El `destroy` se negó a borrar `postgres:14-alpine`**: no por mi código, sino porque un contenedor **completamente ajeno** a este TP (`yim-postgres`, de otro proyecto en mi máquina, parado hacía 5 semanas) usa la misma imagen por nombre:tag, y Docker no deja borrar una imagen en uso por otro contenedor. El `destroy` igual se llevó bien los 7 recursos propios (contenedores, red, volumen); solo falló el intento de borrar la imagen compartida. Lo resolví con `keep_locally = true` en los tres `docker_image` (`postgres`, `api`, `front`): el `destroy` de `preprod` ya no intenta borrar ninguna imagen, solo lo que de verdad creó — exactamente el principio de "convive sin pisar" que pide el TP, aplicado a un caso que la guía no previó (una imagen compartida con algo *fuera* de mis propios entornos).
+- **El `deploy-prod` del merge de `infra/` corrió sin que yo lo aprobara, y no pude determinar la causa.** Mis dos intentos de rechazarlo por API mandaron `state=rejected` (nunca `approved`) y ninguno llegó a aplicarse: el primero falló por un error de sintaxis de shell (no llegó a salir de mi máquina) y el segundo por un tipo de dato mal formado en el body (`422`, "not an integer") — para cuando mandé un tercer intento ya corregido, la API contestó "No pending deployment requests to approve or reject": ya no había nada pendiente. No fui yo. Antes de escribir una causa, comparé el historial completo de `deployments` de `production` por timestamp real (`GET .../deployments/{id}/statuses`): los dos rechazos reales que hice en TP6 (`eeadd10`, `b54aef6`) tardan **2m7s y 11 min** entre `waiting` y `failure` — alguien lee y rechaza a mano, y se nota en el tiempo. Las aprobaciones reales (`72ac1b1`, `ce628fb`, `7b96c87`) tardan **19 a 30 segundos** entre `waiting` y `queued` — rápido, consistente con estar mirando la corrida y aprobar apenas aparece, pero no instantáneo. La de hoy (`9765a696`) tardó **3m8s** entre `waiting` (19:07:41) y `queued` (19:10:49): ni el patrón de un rechazo, ni el de una aprobación mía, ni un bypass en cero segundos. El endpoint `GET .../actions/runs/{run_id}/approvals` no sirvió como evidencia: devolvió la **misma respuesta, byte a byte** (mismo usuario, mismo comentario vacío, mismo timestamp del 20/10) para esta corrida y para una corrida de TP7 de días antes — no está escopeado por corrida de forma confiable. El environment `production` tiene `"prevent_self_review": false` (yo podría aprobar mis propios deploys, lo cual no implica que se salteen) y `"can_admins_bypass": true` (existe esa opción, pero no tengo evidencia de que se haya disparado justo acá). **Conclusión honesta: no sé por qué pasó.** No toco el tag `v7.0.0` (sigue en `8a0e9b0`, sin cambios) ni etiqueto `v8.0.0` sobre el commit de este merge (`9765a696`) — sigo el mismo criterio que usé en TP6/TP7/TP9: el tag de cierre va sobre el commit que deja también escrita la sección de `decisiones.md` del TP, no sobre el commit de código solo.
+
+## Declaración de uso de IA — TP8
+
+Usé Claude Code para todo lo ejecutado en esta sesión: instalar Terraform, escribir los `.tf` de `infra/`, correr el ciclo completo (`init`/`fmt`/`validate`/`plan`/`apply`/`destroy`) contra mi Docker local, diagnosticar y resolver los tres problemas de arriba, y manejar git/PR/merge. Cómo lo verifiqué:
+- Las decisiones de fondo fueron mías, de antemano: elegir Plan C y por qué (las tres razones de arriba las traje yo a la conversación, no las propuso la IA).
+- Pedí que cada `apply`/`destroy` se comprobara de verdad, no solo que Terraform dijera "Apply complete": `curl` manual a `/health` y `/health/db`, y un flujo completo de registro + login + `GET /products` autenticado a través del front, antes de aceptar que el entorno estaba sano.
+- Cuando el primer `apply` falló (imagen `arm64` vs `amd64`) y el primer `destroy` falló (imagen compartida), no acepté "ya va a andar": pedí el log completo y el diagnóstico de la causa real antes de aplicar el fix.
+- El hallazgo del `deploy-prod` sin aprobación lo cuestioné yo mismo: la primera explicación que escribió Claude Code ("limitación estructural de cuenta personal") la rechacé porque no coincidía con que el mismo `deploy-prod`, con la misma cuenta, sí esperó aprobación real varias veces en TP6/TP7/TP9. Le pedí que comparara el historial completo de `deployments` por timestamp (no solo una corrida) antes de volver a escribir algo — y con esa comparación, la conclusión que quedó es que no se puede determinar la causa, no una explicación inventada que suene plausible.
+- Pedí OK explícito antes de cada `push` y cada `merge` de esta sesión.
+
+## Cierre del TP8: tabla contra la consigna
+
+| Tarea | Estado | Evidencia |
+|---|---|---|
+| 1. Entorno `preprod` nuevo, declarado en `infra/`, providers fijados por versión | ✅ | `infra/main.tf` (`kreuzwerker/docker ~> 4.0`), `infra/.terraform.lock.hcl` subido |
+| 2. QA y PROD no se tocan (no se importan, no se migran, no cambian) | ✅ | `preprod` es un proyecto Docker aparte (red/volumen/nombres `-preprod`); los 4 servicios de Render siguen igual |
+| 3. Ninguna credencial en el HCL | ✅ | `db_password`/`session_secret`/`cookie_parser_secret`: variables `sensitive`, sin default, en `infra/local.tfvars` (gitignorado) |
+| 4. Cadena de conexión y dirección del backend derivadas, no copiadas | ✅ | `DB_HOST=${docker_container.db.name}`, `BACKEND_URL=http://${docker_container.api.name}:5000` en `infra/main.tf` |
+| 5. `.gitignore` de estado/`.terraform/`/tfvars desde antes del primer apply | ✅ | agregado al `.gitignore` de la raíz antes del primer `terraform init` |
+| 6. `infra/` en `main` por PR, con el lock y sin el estado | ✅ | PR [#68](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/68), merge `9765a696` |
+| 7. Comprobado como entorno (health + endpoint que toca la base + front contra su propia api) | ✅ | `/health` y `/health/db` en `200`; registro + login + `GET /products` autenticado a través del front (puerto `3090`) |
+| 8. Ciclo de vida: `destroy` → `apply` → preprod idéntico, más de una vez | ✅ | Hecho dos veces en la sesión, con drift en el medio (ver problemas encontrados) |
+| 9. Idempotencia, estado por dentro, drift, `prevent_destroy` | ✅ | `plan` en "No changes" tras el primer `apply`; drift provocado (`docker rm -f` del api) detectado y reparado; recurso no declarado invisible para el plan; `prevent_destroy` en el volumen probado y sacado |
+| 10. Release `v8.0.0` | ✅ | Tag sobre el commit que agrega esta sección a `decisiones.md` |
+
+**Commit de cierre**: el commit que agrega esta sección a `decisiones.md`. `v7.0.0` **no se movió**: sigue en `8a0e9b0`, el cierre real del TP7.
