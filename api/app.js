@@ -70,7 +70,13 @@ app.use("/health", healthRouter);
 app.use("/csrf", csrfToken);
 app.use("/users", usersRouter);
 app.use("/products", productsRouter);
-	
+
+// Temporal, solo para generar un error real en Sentry (TP9, §3.5 de la guía).
+// Se saca apenas se vea el error en Issues.
+app.get("/falla", () => {
+	throw new Error("Falla de prueba del TP9");
+});
+
 if(process.env.NODE_ENV === "production") {
 	app.use(express.static(__dirname.replace("/api","/client/build")));
 	app.get("*", (request, response) => { response.sendFile(__dirname.replace("api","client/build/index.html")); });
