@@ -5,6 +5,8 @@ obj/
 dist/
 build/
 coverage/
+playwright-report/
+test-results/
 
 # secretos: NUNCA se versionan
 .env
