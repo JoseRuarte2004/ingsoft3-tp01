@@ -511,4 +511,17 @@ No hice el ejercicio de "provocar un hallazgo didáctico": no hizo falta, los 3 
 
 ### Declaración de uso de IA — TP9 (CodeQL)
 
-Activé CodeQL yo, pidiéndole a Claude Code que lo hiciera por API (mismo criterio que Dependabot: configuración, no juicio). El análisis de **por qué** cada hallazgo importa y si era explotable lo hizo Claude Code primero, mostrándome el código real (`sed`/`grep` sobre el archivo, no una descripción genérica) y reproduciendo el camino de error con un `curl` real antes de tocar nada — recién ahí decidí que los dos valían la pena arreglar de verdad, no solo documentar. Verifiqué el fix corriendo los 26 tests del backend (sin cambios, porque `routes/*.js` queda afuera de la cuenta de cobertura — ver TP5) y un smoke test end-to-end en Docker (registro, login, alta y listado de producto, y el camino de error mostrando el mensaje genérico en vez del stack trace) antes de aprobar el PR.
+Activé CodeQL yo, pidiéndole a Claude Code que lo hiciera por API (mismo criterio que Dependabot: configuración, no juicio). El análisis de **por qué** cada hallazgo importa y si era explotable lo hizo Claude Code primero, mostrándome el código real (`sed`/`grep` sobre el archivo, no una descripción genérica) y reproduciendo el camino de error con un `curl` real antes de tocar nada — recién ahí decidí que los dos valían la pena arreglar de verdad, no solo documentar. Verifiqué el fix corriendo los 26 tests del backend (sin cambios, porque `routes/*.js` queda afuera de la cuenta de cobertura — ver TP5) y un smoke test end-to-end en Docker (registro, login, alta y listado de producto, y el camino de error mostrando el mensaje genérico en vez del stack trace) antes de aprobar el PR. Las 3 alertas quedaron en `fixed` después del siguiente análisis (confirmado por API, `code-scanning/alerts`).
+
+## Cierre del TP9: tabla contra la consigna
+
+| Tarea | Estado | Evidencia |
+|---|---|---|
+| 1. Dependabot activo (3 ecosistemas) + alertas/security updates prendidas + 1 PR mergeado | ✅ | [PR #35](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/35) (`dependabot.yml`), [PR #36](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/36) (mergeado y analizado) |
+| 2. CodeQL activo, primer análisis terminado, visible en Security → Code scanning | ✅ | [run 39612510550](https://github.com/JoseRuarte2004/ingsoft3-tp01/actions/runs/39612510550), 3 alertas encontradas y corregidas ([PR #56](https://github.com/JoseRuarte2004/ingsoft3-tp01/pull/56)) |
+| 3. Push protection verificada activa | ✅ | `security_and_analysis.secret_scanning_push_protection.status: "enabled"` (API) |
+| 4. Monitor externo sobre `/health` de PROD, DOWN+UP en el historial, pausado al terminar | ✅ | Suspend/Resume de Render + mails de DOWN/UP confirmados; caída real medida en 2m21s (curl externo); monitor pausado |
+| 5. Sentry en back y front, ≥1 error, tabla de uso real, tarjeta en el tablero | ✅ | Issue `INGSOFT3-API-1` en Sentry; `GET /products` la más usada, `POST /users/register` P95 2.65s la más lenta; tarjeta = [issue #54](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/54) en el [Project público](https://github.com/users/JoseRuarte2004/projects/1) |
+| 6. Release `v9.0.0` | ✅ | Tag sobre `f183222` (el commit real que corre en PROD, con el fix de CodeQL incluido) |
+
+**Commit de cierre**: `f183222` — PROD (`/health`, `/health/db`, front) verificado respondiendo sobre ese commit exacto después de la aprobación.
