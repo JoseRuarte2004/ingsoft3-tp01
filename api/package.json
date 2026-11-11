@@ -43,7 +43,7 @@
 		"@testing-library/user-event": "^12.1.10",
 		"bcrypt": "^5.0.0",
 		"cookie-parser": "~1.4.4",
-		"cookie-session": "^1.4.0",
+		"cookie-session": "^2.1.1",
 		"cors": "^2.8.5",
 		"csurf": "^1.11.0",
 		"debug": "~2.6.9",
