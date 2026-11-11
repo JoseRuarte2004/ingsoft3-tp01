@@ -100,6 +100,56 @@ Cómo lo verifiqué (no acepté "quedó listo" sin ver el resultado real de cada
 
 ---
 
+# Decisiones — TP3 (Planificación y trazabilidad)
+
+## Nota de orden: este TP se hizo como recuperatorio de P1, después de TP4-TP9
+
+El TP3 no se hizo en su momento (quedó para el recuperatorio de P1 — ya lo dejé anotado como pendiente cuando cerré el TP9). Esto generó dos cruces reales con TPs que ya estaban cerrados, y los cuento acá en vez de esconderlos, porque entender *por qué* pasó cada uno es justamente lo que se defiende:
+
+1. **El enunciado del TP4 asume que `ci.yml` nace en el TP3.** Dice textual: *"Ese archivo ya existe: lo creaste en el TP3 (§3.4...) con un job `build` que sólo hacía el checkout"*. Como en este repo TP4 se hizo sin pasar por TP3, mi `ci.yml` nació directamente completo (y hoy, después de TP5-TP9, es el pipeline real de producción: build, coverage, publicación a ghcr.io, deploy a QA/PROD con aprobación humana). **No lo piso con el esqueleto mínimo del video** — hacerlo sería un retroceso real, no un ejercicio: rompería el gate y los dos entornos desplegados. La trazabilidad de este TP se demuestra igual (épica → historia → tarea → PR → commit), solo que la tarea cerrada no es "crear el esqueleto" sino una extensión real y chica sobre el pipeline que ya existe (ver abajo).
+2. **Las dos tareas "del video" ya estaban hechas, en TP4 y TP5.** La historia de este TP (*"CI: build y tests automáticos en cada PR"*) trae de fábrica dos tareas: *escribir el workflow de build y tests* y *publicar el reporte de tests como artefacto*. Las dos ya existen en mi repo desde antes de que este TP3 existiera (el workflow, PR #9 del TP4; la publicación del reporte de coverage como artefacto, PR #14 del TP5). Cerrar esas tareas ahora con un PR nuevo que no implementa nada real sería trazabilidad de mentira — el enunciado lo dice explícito: *"si cierra un issue que no implementó, la trazabilidad es de mentira"*. Por eso:
+   - La **Tarea 1** ([#77](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/77)) queda **abierta**, con una nota que referencia el PR histórico real que ya la resolvió. Está permitido por la guía (la historia y una de las dos tareas pueden quedar abiertas).
+   - La **Tarea 2** ([#78](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/78)) se cierra con este mismo PR, pero con una extensión **real**: hasta ahora el Job Summary del pipeline mostraba el % de cobertura del backend, pero no cuántos tests pasaron o fallaron. Agregué un paso a `.github/workflows/ci.yml` que lee el `--json` de Jest (sumé `--json --outputFile=coverage/test-results.json` al script `test:ci` de `api/package.json`) y publica esa cuenta en el resumen. Es chico, aditivo, no toca nada de lo que ya funcionaba (probado localmente con Docker antes de subirlo), y es la parte de "publicar el reporte" que efectivamente faltaba.
+3. **Ya existía un Project mínimo** (`YourInventoryManager — Tablero (TP3/TP9)`, de cuando cerré el TP9 con el issue #54 de latencia, dejado como marcador de que TP3 faltaba). Para no mezclar ese issue suelto con la jerarquía real de este TP, creé un **Project nuevo y dedicado** (`IngSoft3 - Mi App DevOps`) con la épica/historia/tareas/bug de abajo.
+
+## Jerarquía creada
+
+- Épica: [#75](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/75) — *EPIC: Pipeline DevOps completo para mi app*
+- Historia: [#76](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/76) — *CI: build y tests automáticos en cada PR*, con sus 4 criterios de aceptación (la del video)
+- Tareas (sub-issues de la historia): [#77](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/77) (abierta, ver nota de orden) y [#78](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/78) (cerrada por este PR)
+- Bug, al costado de la jerarquía: [#79](https://github.com/JoseRuarte2004/ingsoft3-tp01/issues/79) — la limitación real ya documentada en TP7 (dos corridas de integración/e2e contra la misma QA al mismo tiempo pueden ensuciarse entre sí). No es un bug inventado para la entrega: es un límite conocido y reproducible de mi propio pipeline.
+- Project público: [github.com/users/JoseRuarte2004/projects/2](https://github.com/users/JoseRuarte2004/projects/2) — board con Status (Todo/In Progress/Done), campo Iteration (Sprint) y el límite de WIP de abajo.
+
+## Duración del sprint, y por qué
+
+Un sprint de **1 semana** (arranca el 10/11, el mismo día en que hago este TP). Lo alineo con el ritmo real que vengo usando en toda la materia: cada TP se fue cerrando semana a semana (los tags lo muestran), y el propio recuperatorio tiene un corte de entrega a días vista (miércoles 11/11). Una semana es lo bastante chico para que el Sprint Goal (cerrar la trazabilidad de este TP) sea un compromiso real y no una formalidad, y lo bastante grande para no generar el ruido de replanificar cada dos días.
+
+## Límite de trabajo en progreso, y por qué
+
+**2**. La regla de arranque que da la guía es "cantidad de personas + 1" — trabajando solo, soy 1 persona, así que el límite es 2. El "+1" es la válvula para cuando algo queda esperando (en mi caso real: una corrida de CI, o una aprobación de `deploy-prod`) y necesito poder seguir con otra cosa sin quedarme bloqueado. La señal para subirlo sería que lo alcance todo el tiempo y efectivamente me frene a avanzar en algo que sí podría hacer; hoy, con el volumen de este TP, nunca lo alcancé — lo cual, leído con cuidado, es la señal de que **2 ya es suficiente**, no de que esté mal elegido.
+
+## Diagnóstico de la historia mal escrita (ejercicio §3.2)
+
+La historia de ejemplo: *"Como desarrollador quiero crear la tabla usuarios para guardar los datos"*. Está mal escrita por dos razones, no una: (1) es una **tarea disfrazada** — "crear una tabla" es un paso técnico, no una capacidad que alguien recibe; y (2) el "rol" que usa (desarrollador) es quien **hace** el trabajo, no quien **recibe el valor** — una historia de usuario tiene que estar escrita desde la perspectiva de quien se beneficia del sistema funcionando, no de quien lo construye. Reescrita como lo que realmente es, sería una historia con una tarea técnica adentro: *"Como usuario quiero que mis productos se guarden de forma persistente para no perder mi inventario si el sistema se reinicia"*, con la tarea técnica *"crear las tablas de usuarios y productos en la base"* colgando de ella — el mismo patrón que usé en mi propia historia de este TP (la capacidad observable arriba, el trabajo técnico como tarea debajo).
+
+## Trazabilidad: de la tarea cerrada a la épica
+
+Este mismo PR cierra la Tarea 2 (#78) con `Closes #78` en la descripción. Desde ahí se navega: commit → PR → tarea cerrada (#78) → historia (#76, sub-issue) → épica (#75, sub-issue de la historia). La cadena completa queda visible en el historial de cada issue.
+
+## Problemas encontrados y cómo los resolví
+
+- Los tres cruces de la sección de arriba (el `ci.yml` que ya no es el esqueleto que asume TP4, las dos tareas ya resueltas antes de que este TP existiera, y el Project viejo del TP9) — las tres decisiones están documentadas ahí mismo, con el porqué.
+- `gh project field-create` no soporta crear campos de tipo Iteration desde la CLI (solo TEXT/SINGLE_SELECT/DATE/NUMBER) — lo armé directo contra la API de GraphQL (`createProjectV2Field` con `dataType: ITERATION`).
+- La versión de `gh` de esta máquina (2.93.0) es anterior a la 2.94 que trae `--add-sub-issue` — usé el endpoint REST de sub-issues (`POST /issues/{n}/sub_issues` con el `id` interno del issue, no su número) para armar la jerarquía igual.
+
+## Declaración de uso de IA — TP3
+
+Usé Claude Code para toda la implementación: la lectura cruzada del enunciado de TP3 contra el estado real del repo (lo que encontró los tres cruces de arriba), la creación de labels/issues/jerarquía/Project vía `gh`/API, la extensión chica y real del Job Summary (probada en Docker local antes de subirla — corrí la imagen de test con y sin el flag nuevo y comparé la salida), y esta sección.
+
+Cómo lo verifiqué: antes de tocar `api/package.json`, corrí la etapa de test del Dockerfile en mi máquina con el flag `--json --outputFile=` pasado a mano, confirmé que `coverage-summary.json` seguía generándose igual que antes y que `test-results.json` traía `numPassedTests`/`numFailedTests`/`numTotalTests` correctos (26/0/26) — recién después edité el script real y el `ci.yml`. La jerarquía de issues la revisé con `gh api .../sub_issues_summary` después de cada link, no asumí que el comando había funcionado por la ausencia de error.
+
+---
+
 # Decisiones — TP4 (CI)
 
 ## Estructura del pipeline: por qué esos dos jobs, y por qué en paralelo

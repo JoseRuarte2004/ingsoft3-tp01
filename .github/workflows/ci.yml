@@ -1,5 +1,7 @@
 name: CI
 
+# pull_request es el que importa: verifica el cambio ANTES de que entre a main (alimenta el gate).
+# push a main no verifica nada nuevo (ya pasó por un PR verde) pero deja el cache sembrado y mueve el badge.
 on:
   pull_request:
     branches: [main]
@@ -9,6 +11,7 @@ on:
 jobs:
   build-api:
     runs-on: ubuntu-latest
+    # mínimo privilegio por job (no el default del repo): solo leer código y escribir en el registry
     permissions:
       contents: read
       packages: write
@@ -28,6 +31,8 @@ jobs:
         uses: docker/build-push-action@v7
         with:
           context: ./api
+          # target apunta a una etapa intermedia del Dockerfile (con jest y devDependencies);
+          # no es la imagen final que se publica abajo, esa no lleva los tests
           target: test
           load: true
           push: false
@@ -38,8 +43,12 @@ jobs:
       - name: Correr los tests del backend con coverage
         run: |
           mkdir -p api-coverage
+          # el volumen monta una carpeta del runner adentro del contenedor:
+          # así el coverage sobrevive después de que --rm borra el contenedor
           docker run --rm -v "${{ github.workspace }}/api-coverage:/app/coverage" api-test:ci
 
+      # !cancelled() corre este paso incluso si los tests de arriba fallaron (no solo si pasaron),
+      # pero no si alguien cancela la corrida a mano
       - name: Resumen del coverage del backend
         if: ${{ !cancelled() }}
         run: |
@@ -54,6 +63,22 @@ jobs:
             console.log(f('lines')); console.log(f('branches')); console.log(f('functions'));
           " >> $GITHUB_STEP_SUMMARY
 
+      # TP3 (recuperatorio): el reporte de tests ya se publicaba como artefacto desde el TP5
+      # (coverage), pero no decía cuántos tests corrieron — solo el % de líneas/ramas cubiertas.
+      # Esto lee el --json de Jest (coverage/test-results.json) y suma esa cuenta al Job Summary.
+      - name: Resumen de tests pasados/fallidos del backend
+        if: ${{ !cancelled() }}
+        run: |
+          F=api-coverage/test-results.json
+          test -f "$F"
+          node -e "
+            const r = require('./$F');
+            console.log('### Tests del backend');
+            console.log('| pasados | fallidos | total |'); console.log('|---|---|---|');
+            console.log(\`| \${r.numPassedTests} | \${r.numFailedTests} | \${r.numTotalTests} |\`);
+          " >> $GITHUB_STEP_SUMMARY
+
+      # upload-artifact guarda el archivo en GitHub para poder bajarlo después de que el runner se borra
       - name: Publicar el coverage del backend
         uses: actions/upload-artifact@v6
         if: ${{ !cancelled() }}
@@ -61,6 +86,8 @@ jobs:
           name: coverage-backend
           path: api-coverage
 
+      # login con el GITHUB_TOKEN automático de la corrida (no un token mío) — alcanza porque
+      # el job ya declaró packages: write arriba; nunca hay un secreto propio en este YAML
       - name: Entrar al registry
         if: github.event_name == 'push'
         uses: docker/login-action@v4
@@ -69,6 +96,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # los tres candados de por qué "lo publicado es lo verificado":
+      # 1) nada entra a main sin PR + checks verdes (branch protection, no está en este archivo)
+      # 2) de este paso para abajo: push: solo es true si el evento es push A main
+      # 3) este paso de publicar es el ÚLTIMO del job — si el run de tests de arriba
+      #    devuelve rojo, el job muere ahí y nunca se llega a construir/publicar esto
       - name: Construir y publicar la imagen del backend
         uses: docker/build-push-action@v7
         with:
@@ -80,6 +112,7 @@ jobs:
 
   build-client:
     runs-on: ubuntu-latest
+    # mismo criterio que build-api: paralelo, no serializado, porque no comparten nada en build time
     permissions:
       contents: read
       packages: write
@@ -140,6 +173,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # mismo candado 2/3 que el backend: push solo en true si es push a main, y este paso
+      # es el último del job (si los tests de arriba fallan, nunca se llega hasta aquí)
       - name: Construir y publicar la imagen del frontend
         uses: docker/build-push-action@v7
         with:
@@ -151,9 +186,9 @@ jobs:
 
   deploy-qa:
     runs-on: ubuntu-latest
-    needs: [build-api, build-client]
-    if: github.ref == 'refs/heads/main'
-    environment: qa
+    needs: [build-api, build-client]       # no arranca si cualquiera de los dos builds no terminó verde
+    if: github.ref == 'refs/heads/main'    # en un PR este job sale "skipped": nunca despliega nada
+    environment: qa                        # acá viven los 2 secrets de los hooks de QA (sin aprobación)
     permissions:
       contents: read
     steps:
@@ -166,11 +201,15 @@ jobs:
           HOOK_API: ${{ secrets.RENDER_HOOK_API_QA }}
           HOOK_FRONT: ${{ secrets.RENDER_HOOK_FRONT_QA }}
         run: |
+          # imgURL lleva el sha exacto de esta corrida, nunca "latest" — así Render no
+          # ejecuta "lo último publicado", ejecuta justo lo que este pipeline verificó
           IMG_API="ghcr.io/joseruarte2004/ingsoft3-tp01-backend:sha-${{ github.sha }}"
           IMG_FRONT="ghcr.io/joseruarte2004/ingsoft3-tp01-frontend:sha-${{ github.sha }}"
           curl -fsS --max-time 30 --get --data-urlencode "imgURL=$IMG_API" "$HOOK_API"
           curl -fsS --max-time 30 --get --data-urlencode "imgURL=$IMG_FRONT" "$HOOK_FRONT"
 
+      # 30 intentos cada 20s (10 min) por el cold start de Render; prueba health, health/db
+      # y el front por separado — un /health que no toca la base puede dar verde igual rota
       - name: Smoke test (espera a que QA conteste)
         shell: bash
         env:
@@ -269,9 +308,14 @@ jobs:
   deploy-prod:
     runs-on: ubuntu-latest
     needs: e2e                              # el gate: sin e2e verde, ni siquiera se pide aprobación
+    # a diferencia de environment: qa, production tiene un required reviewer configurado en
+    # GitHub (no en este YAML) — el job queda esperando aprobación humana antes de leer sus secrets
     environment: production
     permissions:
       contents: read
+    # mismo group en las dos corridas que esperan aprobación a la vez: la segunda queda en cola,
+    # no cancela a la primera (cancel-in-progress: false) porque una aprobación pendiente no es
+    # un run que se pueda cancelar como si fuera un job colgado
     concurrency:
       group: deploy-prod
       cancel-in-progress: false
